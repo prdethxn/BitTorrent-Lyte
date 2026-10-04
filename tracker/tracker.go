@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"regexp"
+	"strconv"
 )
 
-//Define regex
+// Define regex
 var hex64Regex = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
-
 
 //Decides what to do with a request
 
@@ -23,80 +22,79 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	//Port number
 	portValues, exists := queryParams["port"]
-	if !exists{
-		http.Error(w http.ResponseWriter, "Port Value Doesn't Exist",http.StatusBadRequest)
+	if !exists {
+		http.Error(w, "Port Value Doesn't Exist", http.StatusBadRequest)
 		return
 	}
 	//Convert port number to INT & keep it within TCP range
 	portNum, err := strconv.Atoi(portValues[0])
 
-	if err != nil || portNum < 1 || portNum > 65535{
-		http.Error(w http.ResponseWriter, "Bad Port Value Given",http.StatusBadRequest)
+	if err != nil || portNum < 1 || portNum > 65535 {
+		http.Error(w, "Bad Port Value Given", http.StatusBadRequest)
 		return
 	}
-    //info_hash, which identifies which swarm the peer is announcing to
+	//info_hash, which identifies which swarm the peer is announcing to
 	infoHash, exists := queryParams["info_hash"]
-	if !exists{
-		http.Error(w http.ResponseWriter, "InfoHash Value Doesn't Exist",http.StatusBadRequest)
+	if !exists {
+		http.Error(w, "InfoHash Value Doesn't Exist", http.StatusBadRequest)
 		return
 	}
 
 	infoHashValue := infoHash[0]
 
-	if !hex64Regex.MatchString(infoHashValue){
-		http.Error(w http.ResponseWriter, "Invalid InfoHash Value Given",http.StatusBadRequest)
+	if !hex64Regex.MatchString(infoHashValue) {
+		http.Error(w, "Invalid InfoHash Value Given", http.StatusBadRequest)
 		return
 	}
 
 	//Peer id (who is making this request)
 	peerId, exists := queryParams["peer_id"]
-	
-	if !exists{
-		http.Error(w http.ResponseWriter, "peerId Value Doesn't Exist",http.StatusBadRequest)
+
+	if !exists {
+		http.Error(w, "peerId Value Doesn't Exist", http.StatusBadRequest)
 		return
 	}
 
 	peerIdValue := peerId[0]
 
 	if len(peerIdValue) == 0 {
-		http.Error(w http.ResponseWriter, "Invalid peerId Value Given",http.StatusBadRequest)
+		http.Error(w, "Invalid peerId Value Given", http.StatusBadRequest)
 		return
 	}
 
 	//transactionId  (associate announce request with transaction)
 	transactionId, exists := queryParams["transaction_id"]
-	
-	if !exists{
-		http.Error(w http.ResponseWriter, "transactionId Value Doesn't Exist",http.StatusBadRequest)
+
+	if !exists {
+		http.Error(w, "transactionId Value Doesn't Exist", http.StatusBadRequest)
 		return
 	}
-    //Make transaciton ID an INT
+	//Make transaciton ID an INT
 	transactionIdValue, err := strconv.Atoi(transactionId[0])
 
-	if err != nil{
-		http.Error(w http.ResponseWriter, "Invalid transactionId Value Given",http.StatusBadRequest)
+	if err != nil {
+		http.Error(w, "Invalid transactionId Value Given", http.StatusBadRequest)
 		return
 	}
 
 	//event
 	allowedEvents := map[string]struct{}{
 		"completed": {},
-		"stopped": {},
-		"started": {},
+		"stopped":   {},
+		"started":   {},
 	}
 
 	event, exists := queryParams["event"]
-	
-	if !exists{
-		http.Error(w http.ResponseWriter, "event Value Doesn't Exist",http.StatusBadRequest)
+
+	if !exists {
+		http.Error(w, "event Value Doesn't Exist", http.StatusBadRequest)
 		return
 	}
 
 	eventValue := event[0]
-	
 
 	if _, exists := allowedEvents[eventValue]; !exists {
-		http.Error(w http.ResponseWriter, "Invalid event Value Given",http.StatusBadRequest)
+		http.Error(w, "Invalid event Value Given", http.StatusBadRequest)
 		return
 	}
 
@@ -106,13 +104,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 	//Send status code and transaction id
-	w.WriteHeader((http.StatusOK))
+	w.WriteHeader(http.StatusOK)
 
 	//Convert from int to string prior to sending
-	transactionIdValue = strconv.Itoa(transactionIdValue)
-	w.Write([]byte(transactionIdValue))
-	return
-
+	stringTransactionIdValue := strconv.Itoa(transactionIdValue)
+	w.Write([]byte(stringTransactionIdValue))
 
 }
 
