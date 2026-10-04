@@ -100,6 +100,19 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//Respond if all parameters are gotten sucessfully
+
+	//Set content type
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+	//Send status code and transaction id
+	w.WriteHeader((http.StatusOK))
+
+	//Convert from int to string prior to sending
+	transactionIdValue = strconv.Itoa(transactionIdValue)
+	w.Write([]byte(transactionIdValue))
+	return
+
 
 }
 
