@@ -5,15 +5,16 @@ import (
 )
 
 type peer struct {
-	peerId string
-	port   int
+	peerId    string
+	port      int
+	completed bool
 }
 
 type swarm struct {
 	//Identify peers via their id
 	peerCollection map[string]*peer
 	info_hash      string
-	mu             sync.Mutex
+	mu             sync.RWMutex
 }
 
 type swarmStore struct {
@@ -52,6 +53,18 @@ func addPeerToSwarm(mySwarm *swarm, myPeer *peer) {
 	mySwarm.peerCollection[myPeer.peerId] = myPeer
 }
 
+func markPeerCompleted(mySwarm *swarm, myPeer *peer) {
+	mySwarm.mu.Lock()
+	defer mySwarm.mu.Unlock()
+	myPeer.completed = true
+}
+
+func removePeerFromSwarm(mySwarm *swarm, myPeer *peer) {
+	mySwarm.mu.Lock()
+	defer mySwarm.mu.Unlock()
+	delete(mySwarm.peerCollection, myPeer.peerId)
+}
+
 // Add swarm to swarm store
 func addToStore(store *swarmStore, info_hash string, newSwarm *swarm) {
 	//lock out other goroutines while check/writing
@@ -71,6 +84,12 @@ func getSwarm(myStore *swarmStore, info_hash string) *swarm {
 	defer myStore.mu.RUnlock()
 
 	return myStore.swarmCollection[info_hash]
+}
+
+func getPeer(mySwarm *swarm, peerId string) *peer {
+	mySwarm.mu.RLock()
+	defer mySwarm.mu.RUnlock()
+	return mySwarm.peerCollection[peerId]
 }
 
 func getOrCreateSwarm(myStore *swarmStore, info_hash string) *swarm {
