@@ -19,7 +19,7 @@ type swarm struct {
 type swarmStore struct {
 	//info_hash is the unique id for each swarm
 	swarmCollection map[string]*swarm
-	mu              sync.Mutex
+	mu              sync.RWMutex
 }
 
 // constuctors
@@ -63,5 +63,25 @@ func addToStore(store *swarmStore, info_hash string, newSwarm *swarm) {
 	if !exists {
 		store.swarmCollection[info_hash] = newSwarm
 	}
+
+}
+
+func getSwarm(myStore *swarmStore, info_hash string) *swarm {
+	myStore.mu.RLock()
+	defer myStore.mu.RUnlock()
+
+	return myStore.swarmCollection[info_hash]
+}
+
+func getOrCreateSwarm(myStore *swarmStore, info_hash string) *swarm {
+	myStore.mu.Lock()
+	defer myStore.mu.Unlock() //Unlock upon exit
+
+	_, exists := myStore.swarmCollection[info_hash]
+
+	if !exists {
+		myStore.swarmCollection[info_hash] = makeSwarm(info_hash)
+	}
+	return myStore.swarmCollection[info_hash]
 
 }
