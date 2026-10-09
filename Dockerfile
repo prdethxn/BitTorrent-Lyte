@@ -1,5 +1,5 @@
 #Start temp envrioment with go installed & set workign image directory
-FROM golang:1.27.1-alpine as BUILDER
+FROM golang:1.27.1-alpine AS builder
 WORKDIR /src
 
 #copy source code and go moduel
@@ -11,8 +11,8 @@ ARG TARGETOS
 ARG TARGETARCH
 
 #Complie tracker
-RUN mkdir -p /out && CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -trimpath -ldflags=”-s -w” -o /out/tracker ./tracker
-#Make image
+RUN mkdir -p /out && CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -trimpath -ldflags="-s -w" -o /out/tracker ./tracker
+
 FROM alpine:3.22
 
 #Create non-rootuser and only comply executable from the builder
