@@ -96,18 +96,6 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 			return
 		}
 
-		//Respond if all parameters are gotten sucessfully
-
-		//Set content type
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-		//Send status code and transaction id
-		w.WriteHeader(http.StatusOK)
-
-		//Convert from int to string prior to sending
-		stringTransactionIdValue := strconv.Itoa(transactionIdValue)
-		w.Write([]byte(stringTransactionIdValue))
-
 		//Do something based on the event
 		switch eventValue {
 		case "started":
@@ -144,6 +132,18 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 			}
 			markPeerCompleted(mySwarm, myPeer)
 		}
+
+		//Respond if all parameters are gotten sucessfully
+
+		//Set content type
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+		//Send status code and transaction id
+		w.WriteHeader(http.StatusOK)
+
+		//Convert from int to string prior to sending
+		stringTransactionIdValue := strconv.Itoa(transactionIdValue)
+		w.Write([]byte(stringTransactionIdValue))
 
 	}
 
