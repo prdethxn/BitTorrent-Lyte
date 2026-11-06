@@ -1,26 +1,31 @@
 package peer
 
 import (
+	"errors"
+	"io"
 	"net"
 	"testing"
+	"time"
 )
 
-func createTestHandshake(infoHash, peerID [20]byte) []byte {
-	buffer := make([]byte, 68)
+// Creates a valid 80-byte custom handshake for testing.
+func createTestHandshake(infoHash [32]byte, peerID [20]byte) []byte {
+	buffer := make([]byte, 80)
 
 	buffer[0] = 19
 	copy(buffer[1:20], "BitTorrent protocol")
-	copy(buffer[28:48], infoHash[:])
-	copy(buffer[48:68], peerID[:])
+	copy(buffer[28:60], infoHash[:])
+	copy(buffer[60:80], peerID[:])
 
 	return buffer
 }
 
+// Tests that a complete handshake is correctly received and decoded.
 func TestReadHandshakeSuccess(t *testing.T) {
-	var expectedHash [20]byte
+	var expectedHash [32]byte
 	var expectedPeerID [20]byte
 
-	copy(expectedHash[:], "12345678901234567890")
+	copy(expectedHash[:], "12345678901234567890123456789012")
 	copy(expectedPeerID[:], "ABCDEFGHIJKLMNOPQRST")
 
 	client, server := net.Pipe()
@@ -38,19 +43,20 @@ func TestReadHandshakeSuccess(t *testing.T) {
 	}
 
 	if handshake.InfoHash != expectedHash {
-		t.Errorf("incorrect info hash returned")
+		t.Error("incorrect info hash returned")
 	}
 
 	if handshake.PeerID != expectedPeerID {
-		t.Errorf("incorrect peer ID returned")
+		t.Error("incorrect peer ID returned")
 	}
 }
 
+// Tests that readHandshake correctly handles fragmented TCP data.
 func TestReadHandshakeFragmented(t *testing.T) {
-	var expectedHash [20]byte
+	var expectedHash [32]byte
 	var expectedPeerID [20]byte
 
-	copy(expectedHash[:], "12345678901234567890")
+	copy(expectedHash[:], "12345678901234567890123456789012")
 	copy(expectedPeerID[:], "ABCDEFGHIJKLMNOPQRST")
 
 	client, server := net.Pipe()
@@ -59,7 +65,7 @@ func TestReadHandshakeFragmented(t *testing.T) {
 
 	data := createTestHandshake(expectedHash, expectedPeerID)
 
-	// Send the handshake in smaller writes to simulate fragmentation.
+	// Send the handshake in smaller writes to simulate TCP fragmentation.
 	go func() {
 		for i := 0; i < len(data); i += 5 {
 			end := i + 5
@@ -87,12 +93,13 @@ func TestReadHandshakeFragmented(t *testing.T) {
 	}
 }
 
+// Tests that an invalid protocol length is rejected.
 func TestReadHandshakeInvalidLength(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
 	defer server.Close()
 
-	data := createTestHandshake([20]byte{}, [20]byte{})
+	data := createTestHandshake([32]byte{}, [20]byte{})
 	data[0] = 18
 
 	go func() {
@@ -105,12 +112,13 @@ func TestReadHandshakeInvalidLength(t *testing.T) {
 	}
 }
 
+// Tests that an invalid protocol identifier is rejected.
 func TestReadHandshakeInvalidProtocol(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
 	defer server.Close()
 
-	data := createTestHandshake([20]byte{}, [20]byte{})
+	data := createTestHandshake([32]byte{}, [20]byte{})
 	copy(data[1:20], "Invalid protocol!!!")
 
 	go func() {
@@ -123,12 +131,13 @@ func TestReadHandshakeInvalidProtocol(t *testing.T) {
 	}
 }
 
+// Tests that an incomplete handshake returns an error.
 func TestReadHandshakeIncomplete(t *testing.T) {
 	client, server := net.Pipe()
 	defer server.Close()
 
 	go func() {
-		data := createTestHandshake([20]byte{}, [20]byte{})
+		data := createTestHandshake([32]byte{}, [20]byte{})
 		client.Write(data[:30])
 		client.Close()
 	}()
@@ -136,5 +145,88 @@ func TestReadHandshakeIncomplete(t *testing.T) {
 	_, err := readHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for incomplete handshake")
+	}
+}
+
+type mockWriteConn struct {
+	writeFunc func([]byte) (int, error)
+}
+
+func (m *mockWriteConn) Write(p []byte) (int, error) {
+	return m.writeFunc(p)
+}
+
+func (m *mockWriteConn) Read([]byte) (int, error)         { return 0, io.EOF }
+func (m *mockWriteConn) Close() error                     { return nil }
+func (m *mockWriteConn) LocalAddr() net.Addr              { return nil }
+func (m *mockWriteConn) RemoteAddr() net.Addr             { return nil }
+func (m *mockWriteConn) SetDeadline(time.Time) error      { return nil }
+func (m *mockWriteConn) SetReadDeadline(time.Time) error  { return nil }
+func (m *mockWriteConn) SetWriteDeadline(time.Time) error { return nil }
+
+// Tests that writeFull successfully writes all bytes.
+func TestWriteFullSuccess(t *testing.T) {
+	data := []byte("BitTorrent")
+
+	connection := &mockWriteConn{
+		writeFunc: func(p []byte) (int, error) {
+			return len(p), nil
+		},
+	}
+
+	if err := writeFull(connection, data); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// Tests that writeFull handles partial writes.
+func TestWriteFullPartialWrites(t *testing.T) {
+	data := []byte("BitTorrent")
+	totalWritten := 0
+
+	connection := &mockWriteConn{
+		writeFunc: func(p []byte) (int, error) {
+			n := min(3, len(p))
+			totalWritten += n
+			return n, nil
+		},
+	}
+
+	if err := writeFull(connection, data); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if totalWritten != len(data) {
+		t.Fatalf("expected %d bytes, got %d", len(data), totalWritten)
+	}
+}
+
+// Tests that writeFull rejects zero-byte writes.
+func TestWriteFullZeroBytes(t *testing.T) {
+	connection := &mockWriteConn{
+		writeFunc: func(p []byte) (int, error) {
+			return 0, nil
+		},
+	}
+
+	if err := writeFull(connection, []byte("test")); err == nil {
+		t.Fatal("expected error for zero-byte write")
+	}
+}
+
+// Tests that writeFull returns connection errors.
+func TestWriteFullConnectionError(t *testing.T) {
+	expectedErr := errors.New("connection failed")
+
+	connection := &mockWriteConn{
+		writeFunc: func(p []byte) (int, error) {
+			return 0, expectedErr
+		},
+	}
+
+	err := writeFull(connection, []byte("test"))
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected connection error, got: %v", err)
 	}
 }
