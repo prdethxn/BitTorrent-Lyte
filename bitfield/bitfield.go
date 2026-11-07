@@ -22,7 +22,7 @@ func newBitfield(numOfPieces int) *Bitfield {
 
 }
 
-func markAsDownloaded(b *Bitfield, index int) error {
+func MarkAsDownloaded(b *Bitfield, index int) error {
 	if !validIndex(b, index) {
 		return fmt.Errorf("Index out of bounds")
 	}
@@ -33,7 +33,7 @@ func markAsDownloaded(b *Bitfield, index int) error {
 	return nil
 }
 
-func isDownloaded(b *Bitfield, index int) (bool, error) {
+func IsDownloaded(b *Bitfield, index int) (bool, error) {
 	if !validIndex(b, index) {
 		return false, fmt.Errorf("Index out of bounds")
 	}

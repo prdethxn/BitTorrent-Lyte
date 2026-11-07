@@ -39,9 +39,16 @@ func processJob(job PieceJob) error {
 		return fmt.Errorf("failed to send handshake: %v", err)
 	}
 	handshake, err := readHandshake(connection)
+
 	if err != nil {
 		//skip job on failure
 		return fmt.Errorf("failed to read handshake: %v", err)
+	}
+
+    //A peer cannot establish a connection to itself
+	if job.LocalPeerID == handshake.PeerID
+	{
+		return errors.New("peer cannot establish connection to itself")
 	}
 
 	//Ensure infohash matching; ensures that is downloaded in the correct file

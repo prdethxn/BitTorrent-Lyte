@@ -38,7 +38,6 @@ func ReadMessage(connection net.Conn) (Message, error) {
 	//If length exceeds 1 Mib, terminate. Prevents overly-large message requests from crashing the app.
 	if length > MaxMessageLength {
 		return Message{}, errors.New("message length exceeds 1 Mib.")
-
 	}
 
 	//Read and extract messageID and data
