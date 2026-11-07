@@ -10,7 +10,7 @@ func TestField(t *testing.T) {
 
 	//Ensure nothing is intially marked as downlaoded
 	for i := 0; i < 10; i++ {
-		downloaded, err := isDownloaded(bitfield, i)
+		downloaded, err := IsDownloaded(bitfield, i)
 		if err != nil {
 			t.Errorf("Unexpected error: for piece %d: %v", i, err)
 		}
@@ -21,13 +21,13 @@ func TestField(t *testing.T) {
 	}
 
 	//Mark some pieces as downloaded
-	markAsDownloaded(bitfield, 0)
-	markAsDownloaded(bitfield, 3)
-	markAsDownloaded(bitfield, 8)
+	MarkAsDownloaded(bitfield, 0)
+	MarkAsDownloaded(bitfield, 3)
+	MarkAsDownloaded(bitfield, 8)
 
 	//Check downloaded peices
 	for _, index := range []int{0, 3, 8} {
-		downloaded, err := isDownloaded(bitfield, index)
+		downloaded, err := IsDownloaded(bitfield, index)
 
 		if err != nil {
 			t.Errorf("Unexpected error for piece %d: %v", index, err)
@@ -40,7 +40,7 @@ func TestField(t *testing.T) {
 
 	//Check pieces that were not downloaded
 	for _, index := range []int{1, 2, 4, 5, 6, 7, 9} {
-		downloaded, err := isDownloaded(bitfield, index)
+		downloaded, err := IsDownloaded(bitfield, index)
 
 		if err != nil {
 			t.Errorf("Unexpected error for piece %d: %v", index, err)

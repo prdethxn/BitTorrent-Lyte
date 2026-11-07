@@ -79,7 +79,7 @@ func handlePieceConnection(
 	if _, err := io.ReadFull(connection, clientHandshake); err != nil {
 		return err
 	}
-	if err := writeFull(connection, makeTestHandshake(infoHash, [20]byte{})); err != nil {
+	if err := writeFull(connection, makeTestHandshake(infoHash, [20]byte{1})); err != nil {
 		return err
 	}
 	// Read the request message and extract its piece coordinates.
@@ -171,7 +171,8 @@ func TestProcessJobSuccessfulDownload(t *testing.T) {
 		PieceLength:  uint32(len(pieceData)),
 		ExpectedHash: hex.EncodeToString(hash[:]),
 	}
-	if err := processJob(job); err != nil {
+	result, err := processJob(job)
+	if err != nil || result.Err != nil {
 		t.Fatalf("expected successful job, got: %v", err)
 	}
 	if err := <-serverErr; err != nil {
@@ -194,7 +195,7 @@ func TestProcessJobIntegrityFailure(t *testing.T) {
 		PieceLength:  uint32(len(pieceData)),
 		ExpectedHash: "incorrect_hash",
 	}
-	if err := processJob(job); err == nil {
+	if _, err := processJob(job); err == nil {
 		t.Fatal("expected integrity failure, got nil")
 	}
 	if err := <-serverErr; err != nil {
@@ -213,9 +214,10 @@ func TestPieceWorkerProcessesMultipleJobs(t *testing.T) {
 		t, jobCount, infoHash, 0, pieceData,
 	)
 	jobQueue := makeJobQueue()
+	resultsChannel := make(chan PieceResult, jobCount)
 	done := make(chan struct{})
 	go func() {
-		pieceWorker(jobQueue)
+		pieceWorker(jobQueue, resultsChannel)
 		close(done)
 	}()
 	for i := 0; i < jobCount; i++ {
@@ -252,12 +254,13 @@ func TestMultipleWorkersProcessJobsConcurrently(t *testing.T) {
 		t, workerCount, infoHash, 0, pieceData,
 	)
 	jobQueue := make(chan PieceJob, workerCount)
+	resultsChannel := make(chan PieceResult, workerCount)
 	var wg sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pieceWorker(jobQueue)
+			pieceWorker(jobQueue, resultsChannel)
 		}()
 	}
 	for i := 0; i < workerCount; i++ {

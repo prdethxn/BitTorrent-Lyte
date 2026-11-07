@@ -8,6 +8,13 @@ import (
 	"github.com/prdethxn/BitTorrent-Lyte/integrity"
 )
 
+// Used to communicate between workers and a centeral coordinator
+type PieceResult struct {
+	PieceIndex uint32
+	Data       []byte
+	Err        error
+}
+
 type PieceJob struct {
 	PieceIndex   uint32   //Identifies which piece the worker is assigned
 	Infohash     [32]byte //idenfifies swarm
@@ -25,63 +32,64 @@ func addJob(jobQueue chan PieceJob, job PieceJob) {
 	jobQueue <- job
 }
 
-func processJob(job PieceJob) error {
+func processJob(job PieceJob) (PieceResult, error) {
 	//Connect to peer
 	connection, err := net.Dial("tcp", job.PeerAddress)
 	if err != nil {
 		//handle error by skipping job
-		return fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
+		return PieceResult{}, fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
 	}
 	defer connection.Close()
 
 	err = sendHandshake(connection, job.Infohash, job.LocalPeerID)
 	if err != nil {
-		return fmt.Errorf("failed to send handshake: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to send handshake: %v", err)
 	}
 	handshake, err := readHandshake(connection)
 
 	if err != nil {
 		//skip job on failure
-		return fmt.Errorf("failed to read handshake: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to read handshake: %v", err)
 	}
 
-    //A peer cannot establish a connection to itself
-	if job.LocalPeerID == handshake.PeerID
-	{
-		return errors.New("peer cannot establish connection to itself")
+	//A peer cannot establish a connection to itself
+	if job.LocalPeerID == handshake.PeerID {
+		return PieceResult{}, errors.New("peer cannot establish connection to itself")
 	}
 
 	//Ensure infohash matching; ensures that is downloaded in the correct file
 	if handshake.InfoHash != job.Infohash {
-		return errors.New("infohash mismatch")
+		return PieceResult{}, errors.New("infohash mismatch")
 	}
 
 	//Download piece data
 	pieceData, err := downloadPiece(connection, job.PieceIndex, job.PieceLength)
 	if err != nil {
-		return fmt.Errorf("failed to download piece: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to download piece: %v", err)
 	}
 
 	//Verify donwloaded piece integrity
 	if !integrity.VerifyIntegrity(pieceData, job.ExpectedHash) {
-		return errors.New("integrity check failed for downloaded piece")
+		return PieceResult{}, errors.New("integrity check failed for downloaded piece")
 	}
-	return nil
+	return PieceResult{job.PieceIndex, pieceData, nil}, nil
 }
 
-// Worker function to process jobs from queue
-func pieceWorker(jobQueue <-chan PieceJob) {
+// Worker function to process jobs from queue and send result
+func pieceWorker(jobQueue <-chan PieceJob, resultsChannel chan<- PieceResult) {
 	for job := range jobQueue {
-		err := processJob(job)
+		result, err := processJob(job)
 		if err != nil {
-			continue //Skip failed job for now.
+			result.Err = err
+			result.PieceIndex = job.PieceIndex
 		}
+		resultsChannel <- result
 	}
 }
 
 // Starts workers to grab and process data from queue
-func startWorkers(workerCount int, jobQueue chan PieceJob) {
+func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<- PieceResult) {
 	for i := 0; i < workerCount; i++ {
-		go pieceWorker(jobQueue)
+		go pieceWorker(jobQueue, resultsChannel)
 	}
 }
