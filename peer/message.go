@@ -4,6 +4,7 @@ package peer
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -202,4 +203,20 @@ func downloadPiece(connection net.Conn, pieceIndex uint32, pieceLength uint32) (
 		}
 	}
 	return pieceData, nil
+}
+
+// Consume results from all workers
+func collectResults(resultsChannel <-chan PieceResult, expetectedResults int) (map[uint32][]byte, []uint32) {
+	results := make(map[uint32][]byte)
+	failedPieces := []uint32{}
+	//Recieve and store results
+	for result := range resultsChannel {
+		if result.Err != nil {
+			fmt.Printf("job failed for piece %d: %v\n", result.PieceIndex, result.Err)
+			failedPieces = append(failedPieces, result.PieceIndex)
+		} else {
+			results[result.PieceIndex] = result.Data
+		}
+	}
+	return results, failedPieces
 }

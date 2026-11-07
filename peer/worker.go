@@ -93,3 +93,20 @@ func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<-
 		go pieceWorker(jobQueue, resultsChannel)
 	}
 }
+
+// Consume results from all workers
+func collectResults(resultsChannel <-chan PieceResult, expetectedResults int) (map[uint32][]byte, []uint32) {
+	results := make(map[uint32][]byte)
+	failedPieces := []uint32{}
+	//Recieve and store results
+	for i := 0; i < expetectedResults; i++ {
+		result := <-resultsChannel
+		if result.Err != nil {
+			fmt.Printf("job failed for piece %d: %v\n", result.PieceIndex, result.Err)
+			failedPieces = append(failedPieces, result.PieceIndex)
+		} else {
+			results[result.PieceIndex] = result.Data
+		}
+	}
+	return results, failedPieces
+}
