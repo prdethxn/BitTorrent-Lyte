@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-const MsgRequest byte = 6
-
 // Creates a valid 80-byte BitTorrent handshake for testing.
 func makeTestHandshake(infoHash [32]byte, peerID [20]byte) []byte {
 	buffer := make([]byte, 80)

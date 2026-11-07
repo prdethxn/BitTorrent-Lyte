@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/prdethxn/BitTorrent-Lyte/integrity"
 )
@@ -34,7 +35,7 @@ func addJob(jobQueue chan PieceJob, job PieceJob) {
 
 func processJob(job PieceJob) (PieceResult, error) {
 	//Connect to peer
-	connection, err := net.Dial("tcp", job.PeerAddress)
+	connection, err := net.DialTimeout("tcp", job.PeerAddress, 5*time.Second)
 	if err != nil {
 		//handle error by skipping job
 		return PieceResult{}, fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
@@ -109,4 +110,24 @@ func collectResults(resultsChannel <-chan PieceResult, expetectedResults int) (m
 		}
 	}
 	return results, failedPieces
+}
+
+func makeResultsChannel(jobCount int) chan PieceResult {
+	return make(chan PieceResult, jobCount)
+}
+
+func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint32) {
+	//Create job queue and start workers
+	queue := makeJobQueue()
+	resultsChannel := makeResultsChannel(len(job))
+	startWorkers(workerCount, queue, resultsChannel)
+
+	//Dsitrbute jobs and collect results, returning failed and sucessful piece indexes
+	go func() {
+		for i := 0; i < len(job); i++ {
+			addJob(queue, job[i])
+		}
+		close(queue)
+	}()
+	return collectResults(resultsChannel, len(job))
 }
