@@ -6,7 +6,7 @@ import (
 
 func TestField(t *testing.T) {
 	//Bitfield with 10 pieces
-	bitfield := newBitfield(10)
+	bitfield := NewBitfield(10)
 
 	//Ensure nothing is intially marked as downlaoded
 	for i := 0; i < 10; i++ {

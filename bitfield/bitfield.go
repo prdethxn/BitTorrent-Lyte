@@ -1,11 +1,15 @@
 package bitfield
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // Conveys pieces which the peer has downloaded
 type Bitfield struct {
 	field       []byte
 	numOfPieces int
+	mu          sync.RWMutex
 }
 
 // Check if index is valid for bitfield
@@ -14,7 +18,10 @@ func validIndex(b *Bitfield, index int) bool {
 }
 
 // Constructor function.
-func newBitfield(numOfPieces int) *Bitfield {
+func NewBitfield(numOfPieces int) *Bitfield {
+	if numOfPieces < 0 {
+		return nil
+	}
 	return &Bitfield{
 		numOfPieces: numOfPieces,
 		field:       make([]byte, (numOfPieces+7)/8),
@@ -23,6 +30,8 @@ func newBitfield(numOfPieces int) *Bitfield {
 }
 
 func MarkAsDownloaded(b *Bitfield, index int) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if !validIndex(b, index) {
 		return fmt.Errorf("Index out of bounds")
 	}
@@ -34,6 +43,8 @@ func MarkAsDownloaded(b *Bitfield, index int) error {
 }
 
 func IsDownloaded(b *Bitfield, index int) (bool, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	if !validIndex(b, index) {
 		return false, fmt.Errorf("Index out of bounds")
 	}
