@@ -17,7 +17,12 @@ type Message struct {
 
 const MaxMessageLength uint32 = 1 << 20 // 1 MiB
 const BlockSize uint32 = 16 * 1024      // 16 Kib
-const MsgRequest byte = 6
+const (
+	MsgRequest  byte = 6
+	MsgHave     byte = 4
+	MsgBitfield byte = 5
+	MsgPiece    byte = 7
+)
 
 func ReadMessage(connection net.Conn) (Message, error) {
 	//Get length

@@ -89,10 +89,14 @@ func pieceWorker(jobQueue <-chan PieceJob, resultsChannel chan<- PieceResult) {
 }
 
 // Starts workers to grab and process data from queue
-func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<- PieceResult) {
+func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<- PieceResult) error {
+	if workerCount < 1 {
+		return fmt.Errorf("Invalid number of workers")
+	}
 	for i := 0; i < workerCount; i++ {
 		go pieceWorker(jobQueue, resultsChannel)
 	}
+	return nil
 }
 
 // Consume results from all workers
@@ -116,11 +120,14 @@ func makeResultsChannel(jobCount int) chan PieceResult {
 	return make(chan PieceResult, jobCount)
 }
 
-func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint32) {
+func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint32, error) {
 	//Create job queue and start workers
 	queue := makeJobQueue()
 	resultsChannel := makeResultsChannel(len(job))
-	startWorkers(workerCount, queue, resultsChannel)
+	err := startWorkers(workerCount, queue, resultsChannel)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	//Dsitrbute jobs and collect results, returning failed and sucessful piece indexes
 	go func() {
@@ -129,5 +136,6 @@ func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint3
 		}
 		close(queue)
 	}()
-	return collectResults(resultsChannel, len(job))
+	results, failedPieces := collectResults(resultsChannel, len(job))
+	return results, failedPieces, nil
 }

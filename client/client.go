@@ -3,10 +3,14 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/prdethxn/BitTorrent-Lyte/peer"
+	"github.com/prdethxn/BitTorrent-Lyte/storage"
 )
 
 type TrackerResponse struct {
@@ -63,5 +67,27 @@ func Announce(trackerURL string, peerID string, port int, infoHash string, trans
 	}
 
 	return &trackerResponse, nil
+
+}
+
+func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, pieceLength int, totalLength int64) error {
+	pieces, failedPieces, err := peer.DownloadPieces(jobs, workerCount)
+
+	if err != nil {
+		return err
+	}
+
+	if len(failedPieces) > 0 {
+		return fmt.Errorf("%d pieces failed to download", len(failedPieces))
+	}
+
+	err = storage.AssembleFile(outputPath, pieces, pieceLength, totalLength)
+	if err != nil {
+		return fmt.Errorf("failed to assemble file: %w", err)
+	}
+	return nil
+}
+
+func handleUpload(connection net.Conn, filePath string) error {
 
 }
