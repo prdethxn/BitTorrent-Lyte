@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prdethxn/BitTorrent-Lyte/bitfield"
 	"github.com/prdethxn/BitTorrent-Lyte/chunker"
 	"github.com/prdethxn/BitTorrent-Lyte/peer"
 	"github.com/prdethxn/BitTorrent-Lyte/storage"
@@ -94,7 +95,7 @@ func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, piec
 	return nil
 }
 
-func handleUpload(connection net.Conn, filePath string, pieceLength uint32) error {
+func handleUpload(connection net.Conn, filePath string, pieceLength uint32, availablePieces *bitfield.Bitfield) error {
 	defer connection.Close()
 
 	file, err := os.Open(filePath)
@@ -128,6 +129,18 @@ func handleUpload(connection net.Conn, filePath string, pieceLength uint32) erro
 		}
 
 		index := binary.BigEndian.Uint32(message.Payload[0:4])
+
+		//Ensure peice is avliable before reading the file
+		isDownloaded, err := bitfield.IsDownloaded(availablePieces, int(index))
+
+		if err != nil {
+			return fmt.Errorf("failed to check piece availability: %w", err)
+		}
+
+		if !isDownloaded {
+			return fmt.Errorf("piece %d is unavailable", index)
+		}
+
 		offset := binary.BigEndian.Uint32(message.Payload[4:8])
 		length := binary.BigEndian.Uint32(message.Payload[8:12])
 
@@ -255,7 +268,17 @@ func DownloadFromSwarm(trackerURL string, address string, peerID [20]byte, port 
 		return err
 	}
 
-	err = StartSeeding(address, outputPath, uint32(metadata.PieceLength), trackerURL, string(peerID[:]), port, infoHashHex, transactionID)
+	//Make pieces as downloaded
+	numPieces := (metadata.TotalLength + int64(metadata.PieceLength) - 1) / int64(metadata.PieceLength)
+	availablePieces := bitfield.NewBitfield(int(numPieces))
+
+	for i := 0; i < int(numPieces); i++ {
+		if err := bitfield.MarkAsDownloaded(availablePieces, i); err != nil {
+			return err
+		}
+	}
+
+	err = StartSeeding(address, outputPath, uint32(metadata.PieceLength), trackerURL, string(peerID[:]), port, infoHashHex, transactionID, availablePieces)
 	if err != nil {
 		return err
 	}

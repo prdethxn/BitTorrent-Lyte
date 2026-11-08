@@ -6,10 +6,11 @@ import (
 	"log"
 	"net"
 
+	"github.com/prdethxn/BitTorrent-Lyte/bitfield"
 	"github.com/prdethxn/BitTorrent-Lyte/peer"
 )
 
-func StartUploadServer(address string, filePath string, pieceLength uint32, infoHash [32]byte, peerID [20]byte) error {
+func StartUploadServer(address string, filePath string, pieceLength uint32, infoHash [32]byte, peerID [20]byte, availablePieces *bitfield.Bitfield) error {
 	//Open TCP listener
 	listener, err := peer.Listen(address)
 
@@ -27,7 +28,7 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 
 			if err != nil {
 				log.Printf("Failed to accept connection %v", err)
-				continue
+				return
 			}
 
 			//handle upload requests concurrently
@@ -50,7 +51,7 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 					return
 				}
 
-				err = handleUpload(conn, filePath, pieceLength)
+				err = handleUpload(conn, filePath, pieceLength, availablePieces)
 				if err != nil {
 					log.Printf("Failed to upload to peer: %v", err)
 				}
@@ -61,7 +62,7 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 	return nil //return once listner is running
 }
 
-func StartSeeding(address string, filePath string, pieceLength uint32, trackerURL string, peerID string, port int, infoHash string, transactionID int) error {
+func StartSeeding(address string, filePath string, pieceLength uint32, trackerURL string, peerID string, port int, infoHash string, transactionID int, availablePieces *bitfield.Bitfield) error {
 	// Convert peer ID into a fixed-size array.
 	if len(peerID) != 20 {
 		return fmt.Errorf("invalid peer ID length")
@@ -78,7 +79,7 @@ func StartSeeding(address string, filePath string, pieceLength uint32, trackerUR
 	copy(localInfoHash[:], hashBytes)
 
 	// Start upload server.
-	err = StartUploadServer(address, filePath, pieceLength, localInfoHash, localPeerID)
+	err = StartUploadServer(address, filePath, pieceLength, localInfoHash, localPeerID, availablePieces)
 	if err != nil {
 		return err
 	}
