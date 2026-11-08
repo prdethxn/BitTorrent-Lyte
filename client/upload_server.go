@@ -14,24 +14,29 @@ func StartUploadServer(address string, filePath string, pieceLength uint32) erro
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
 
-	//Continiosly accept incoming connections
-	for {
-		connection, err := peer.AcceptConnection(listener)
+	//Continiosly accept incoming connections. Use gorountine to run concurrently with client
+	go func() {
+		//shut down listner once background loop is done
+		defer listener.Close()
+		for {
 
-		if err != nil {
-			log.Printf("Failed to accept connection %v", err)
-			continue
-		}
+			connection, err := peer.AcceptConnection(listener)
 
-		//handle upload requests concurrently
-		go func(conn net.Conn) {
-			err := handleUpload(conn, filePath, pieceLength)
 			if err != nil {
-				log.Printf("Failed to upload to peer: %v", err)
+				log.Printf("Failed to accept connection %v", err)
+				continue
 			}
-		}(connection) //passing connection to prevent racing
 
-	}
+			//handle upload requests concurrently
+			go func(conn net.Conn) {
+				err := handleUpload(conn, filePath, pieceLength)
+				if err != nil {
+					log.Printf("Failed to upload to peer: %v", err)
+				}
+			}(connection) //passing connection to prevent racing
+
+		}
+	}()
+	return nil //return once listner is running
 }
