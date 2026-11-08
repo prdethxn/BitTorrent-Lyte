@@ -63,6 +63,12 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 }
 
 func StartSeeding(address string, filePath string, pieceLength uint32, trackerURL string, peerID string, port int, infoHash string, transactionID int, availablePieces *bitfield.Bitfield) error {
+	// Announce started event to tracker.
+	_, err := Announce(trackerURL, peerID, port, infoHash, transactionID, "started")
+	if err != nil {
+		return err
+	}
+
 	// Convert peer ID into a fixed-size array.
 	if len(peerID) != 20 {
 		return fmt.Errorf("invalid peer ID length")

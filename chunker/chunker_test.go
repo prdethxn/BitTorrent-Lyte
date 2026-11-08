@@ -14,7 +14,7 @@ func TestValidateChunkSize(t *testing.T) {
 }
 
 func TestChunkFile(t *testing.T) {
-	got, err := chunkFile("test_files/testinput.txt", 5)
+	got, err := ChunkFile("test_files/testinput.txt", 5)
 	want := TorrentMetaData{
 		Filename:    "testinput.txt",
 		TotalLength: 12,

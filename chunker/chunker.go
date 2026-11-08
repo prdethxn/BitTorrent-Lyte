@@ -23,7 +23,7 @@ func validateChunkSize(chunkSize int) bool {
 	return chunkSize > 0
 }
 
-func chunkFile(filePath string, chunkSize int) (TorrentMetaData, error) {
+func ChunkFile(filePath string, chunkSize int) (TorrentMetaData, error) {
 
 	if !validateChunkSize(chunkSize) {
 		return TorrentMetaData{}, errors.New("Chunk size must be > 0")
