@@ -3,7 +3,9 @@ package client
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -90,61 +92,81 @@ func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, piec
 	return nil
 }
 
-func handleUpload(connection net.Conn, filePath string, pieceLegnth uint32) error {
-	//read message and identify piece request
-	message, err := peer.ReadMessage(connection)
-	if err != nil {
-		return err
-	}
-
-	if len(message.Payload) != 12 {
-		return fmt.Errorf("message is missing requested fields")
-	}
-
-	if message.ID != peer.MsgRequest {
-		return fmt.Errorf("message id and msg request mismatch")
-	}
-
-	index := binary.BigEndian.Uint32(message.Payload[0:4])
-	offset := binary.BigEndian.Uint32(message.Payload[4:8])
-	length := binary.BigEndian.Uint32(message.Payload[8:12])
-
-	//extract request piece info and retrieve desires bytes from local storage
-	fileOffset := uint64(index)*uint64(pieceLegnth) + uint64(offset)
+func handleUpload(connection net.Conn, filePath string, pieceLength uint32) error {
+	defer connection.Close()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("Failed to open requested file")
+		return fmt.Errorf("failed to open requested file: %w", err)
 	}
 	defer file.Close()
 
-	buffer := make([]byte, length)
-	numBytesRead, err := file.ReadAt(buffer, int64(fileOffset))
+	for {
+		// Read the next incoming piece request.
+		message, err := peer.ReadMessage(connection)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return fmt.Errorf("failed to read piece request: %w", err)
+		}
 
-	if numBytesRead != int(length) {
-		return fmt.Errorf("incomplete block read")
+		// Ignore keep-alive messages.
+		if message.Length == 0 {
+			continue
+		}
+
+		// Ensure this is a valid piece request.
+		if message.ID != peer.MsgRequest {
+			return fmt.Errorf("unexpected message ID: %d", message.ID)
+		}
+
+		if len(message.Payload) != 12 {
+			return fmt.Errorf("invalid piece request payload length")
+		}
+
+		index := binary.BigEndian.Uint32(message.Payload[0:4])
+		offset := binary.BigEndian.Uint32(message.Payload[4:8])
+		length := binary.BigEndian.Uint32(message.Payload[8:12])
+
+		// Validate requested block length.
+		if length == 0 || length > peer.BlockSize {
+			return fmt.Errorf("invalid requested block length")
+		}
+
+		// Calculate absolute file offset.
+		fileOffset := uint64(index)*uint64(pieceLength) + uint64(offset)
+
+		// Validate requested block boundaries.
+		if offset >= pieceLength || uint64(offset)+uint64(length) > uint64(pieceLength) {
+			return fmt.Errorf("requested block exceeds piece boundaries")
+		}
+
+		// Retrieve requested bytes.
+		buffer := make([]byte, length)
+		numBytesRead, err := file.ReadAt(buffer, int64(fileOffset))
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("failed to read requested block: %w", err)
+		}
+
+		if numBytesRead != int(length) {
+			return fmt.Errorf("incomplete block read")
+		}
+
+		// Construct piece response.
+		payload := make([]byte, 8+length)
+		binary.BigEndian.PutUint32(payload[0:4], index)
+		binary.BigEndian.PutUint32(payload[4:8], offset)
+		copy(payload[8:], buffer)
+
+		response := make([]byte, 4+1+len(payload))
+		binary.BigEndian.PutUint32(response[0:4], uint32(1+len(payload)))
+		response[4] = peer.MsgPiece
+		copy(response[5:], payload)
+
+		// Send response before processing the next request.
+		if err := peer.WriteFull(connection, response); err != nil {
+			return fmt.Errorf("failed to send piece response: %w", err)
+		}
 	}
-
-	if err != nil {
-		return err
-	}
-
-	payload := make([]byte, 8+length)
-	binary.BigEndian.PutUint32(payload[0:4], index)
-	binary.BigEndian.PutUint32(payload[4:8], offset)
-	copy(payload[8:], buffer)
-	//construct and send msgPiece response
-	msgPiece := peer.Message{
-		Length:  uint32(1 + len(payload)),
-		ID:      peer.MsgPiece,
-		Payload: payload,
-	}
-
-	response := make([]byte, 4+msgPiece.Length)
-	binary.BigEndian.PutUint32(response[0:4], msgPiece.Length)
-	response[4] = msgPiece.ID
-	copy(response[5:], msgPiece.Payload)
-
-	return peer.WriteFull(connection, response)
-
 }
