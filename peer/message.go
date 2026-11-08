@@ -75,7 +75,7 @@ func sendPieceRequest(connection net.Conn, index uint32, begin uint32, length ui
 	binary.BigEndian.PutUint32(buffer[13:17], length)
 
 	//Send data to connection
-	return writeFull(connection, buffer)
+	return WriteFull(connection, buffer)
 }
 
 func parsePieceMessage(message Message) (uint32, uint32, []byte, error) {

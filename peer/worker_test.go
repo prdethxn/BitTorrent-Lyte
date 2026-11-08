@@ -50,7 +50,7 @@ func startTestPeer(t *testing.T, response []byte) (string, <-chan error) {
 			return
 		}
 		if response != nil {
-			if err := writeFull(connection, response); err != nil {
+			if err := WriteFull(connection, response); err != nil {
 				serverErr <- err
 				return
 			}
@@ -77,7 +77,7 @@ func handlePieceConnection(
 	if _, err := io.ReadFull(connection, clientHandshake); err != nil {
 		return err
 	}
-	if err := writeFull(connection, makeTestHandshake(infoHash, [20]byte{1})); err != nil {
+	if err := WriteFull(connection, makeTestHandshake(infoHash, [20]byte{1})); err != nil {
 		return err
 	}
 	// Read the request message and extract its piece coordinates.
@@ -105,7 +105,7 @@ func handlePieceConnection(
 	binary.BigEndian.PutUint32(response[5:9], pieceIndex)
 	binary.BigEndian.PutUint32(response[9:13], begin)
 	copy(response[13:], block)
-	return writeFull(connection, response)
+	return WriteFull(connection, response)
 }
 
 // Starts a mock peer that can handle multiple independent connections.

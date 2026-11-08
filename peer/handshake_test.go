@@ -173,8 +173,7 @@ func TestWriteFullSuccess(t *testing.T) {
 			return len(p), nil
 		},
 	}
-
-	if err := writeFull(connection, data); err != nil {
+	if err := WriteFull(connection, data); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -192,7 +191,7 @@ func TestWriteFullPartialWrites(t *testing.T) {
 		},
 	}
 
-	if err := writeFull(connection, data); err != nil {
+	if err := WriteFull(connection, data); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -209,7 +208,7 @@ func TestWriteFullZeroBytes(t *testing.T) {
 		},
 	}
 
-	if err := writeFull(connection, []byte("test")); err == nil {
+	if err := WriteFull(connection, []byte("test")); err == nil {
 		t.Fatal("expected error for zero-byte write")
 	}
 }
@@ -224,7 +223,7 @@ func TestWriteFullConnectionError(t *testing.T) {
 		},
 	}
 
-	err := writeFull(connection, []byte("test"))
+	err := WriteFull(connection, []byte("test"))
 
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected connection error, got: %v", err)

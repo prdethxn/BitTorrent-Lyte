@@ -1,11 +1,13 @@
 package client
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -88,6 +90,61 @@ func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, piec
 	return nil
 }
 
-func handleUpload(connection net.Conn, filePath string) error {
+func handleUpload(connection net.Conn, filePath string, pieceLegnth uint32) error {
+	//read message and identify piece request
+	message, err := peer.ReadMessage(connection)
+	if err != nil {
+		return err
+	}
+
+	if len(message.Payload) != 12 {
+		return fmt.Errorf("message is missing requested fields")
+	}
+
+	if message.ID != peer.MsgRequest {
+		return fmt.Errorf("message id and msg request mismatch")
+	}
+
+	index := binary.BigEndian.Uint32(message.Payload[0:4])
+	offset := binary.BigEndian.Uint32(message.Payload[4:8])
+	length := binary.BigEndian.Uint32(message.Payload[8:12])
+
+	//extract request piece info and retrieve desires bytes from local storage
+	fileOffset := uint64(index)*uint64(pieceLegnth) + uint64(offset)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("Failed to open requested file")
+	}
+	defer file.Close()
+
+	buffer := make([]byte, length)
+	numBytesRead, err := file.ReadAt(buffer, int64(fileOffset))
+
+	if numBytesRead != int(length) {
+		return fmt.Errorf("incomplete block read")
+	}
+
+	if err != nil {
+		return err
+	}
+
+	payload := make([]byte, 8+length)
+	binary.BigEndian.PutUint32(payload[0:4], index)
+	binary.BigEndian.PutUint32(payload[4:8], offset)
+	copy(payload[8:], buffer)
+	//construct and send msgPiece response
+	msgPiece := peer.Message{
+		Length:  uint32(1 + len(payload)),
+		ID:      peer.MsgPiece,
+		Payload: payload,
+	}
+
+	response := make([]byte, 4+msgPiece.Length)
+	binary.BigEndian.PutUint32(response[0:4], msgPiece.Length)
+	response[4] = msgPiece.ID
+	copy(response[5:], msgPiece.Payload)
+
+	return peer.WriteFull(connection, response)
 
 }

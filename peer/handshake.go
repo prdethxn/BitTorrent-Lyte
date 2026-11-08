@@ -53,7 +53,7 @@ func readHandshake(connection net.Conn) (Handshake, error) {
 }
 
 // Guarentee that all bytes are written
-func writeFull(connection net.Conn, buffer []byte) error {
+func WriteFull(connection net.Conn, buffer []byte) error {
 	totalWritten := 0
 	for totalWritten < len(buffer) {
 		bytes, err := connection.Write(buffer[totalWritten:])
