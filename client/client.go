@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prdethxn/BitTorrent-Lyte/chunker"
 	"github.com/prdethxn/BitTorrent-Lyte/peer"
 	"github.com/prdethxn/BitTorrent-Lyte/storage"
 )
@@ -169,4 +171,94 @@ func handleUpload(connection net.Conn, filePath string, pieceLength uint32) erro
 			return fmt.Errorf("failed to send piece response: %w", err)
 		}
 	}
+}
+
+// Create download jobs by distributing pieces across available peers.
+func CreatePieceJobs(trackerResponse *TrackerResponse, metadata chunker.TorrentMetaData, infoHash [32]byte, localPeerID [20]byte) ([]peer.PieceJob, error) {
+
+	// Validate torrent metadata.
+	if metadata.PieceLength <= 0 || metadata.TotalLength < 0 {
+		return nil, fmt.Errorf("invalid torrent metadata")
+	}
+
+	// Calculate expected number of pieces.
+	expectedPieces := (metadata.TotalLength + int64(metadata.PieceLength) - 1) /
+		int64(metadata.PieceLength)
+
+	if len(metadata.PieceHashes) != int(expectedPieces) {
+		return nil, fmt.Errorf("piece hash count does not match expected piece count")
+	}
+
+	// No jobs are required for an empty file.
+	if expectedPieces == 0 {
+		return []peer.PieceJob{}, nil
+	}
+
+	// Ensure peers are available to download from.
+	if trackerResponse == nil || len(trackerResponse.Peers) == 0 {
+		return nil, fmt.Errorf("no peers available")
+	}
+
+	jobs := make([]peer.PieceJob, 0, expectedPieces)
+
+	// Distribute pieces across available peers using round-robin.
+	for i := 0; i < int(expectedPieces); i++ {
+		currentPeer := trackerResponse.Peers[i%len(trackerResponse.Peers)]
+
+		// Calculate actual piece length, accounting for the final piece.
+		pieceLength := uint32(metadata.PieceLength)
+		remaining := metadata.TotalLength - int64(i)*int64(metadata.PieceLength)
+
+		if remaining < int64(pieceLength) {
+			pieceLength = uint32(remaining)
+		}
+
+		// Construct peer address.
+		peerAddress := net.JoinHostPort(
+			currentPeer.IPAddress,
+			strconv.Itoa(currentPeer.Port),
+		)
+
+		// Create piece download job.
+		job := peer.PieceJob{
+			PieceIndex:   uint32(i),
+			Infohash:     infoHash,
+			LocalPeerID:  localPeerID,
+			PeerAddress:  peerAddress,
+			PieceLength:  pieceLength,
+			ExpectedHash: metadata.PieceHashes[i],
+		}
+
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
+}
+
+func DownloadFromSwarm(trackerURL string, address string, peerID [20]byte, port int, infoHash [32]byte, transactionID int, metadata chunker.TorrentMetaData, outputPath string, workerCount int) error {
+	infoHashHex := hex.EncodeToString(infoHash[:])
+
+	//Announce client to tracker and get avaliable peers
+	trackerResponse, err := Announce(trackerURL, string(peerID[:]), port, infoHashHex, transactionID, "started")
+	if err != nil {
+		return err
+	}
+
+	//Generate jobs
+	jobs, err := CreatePieceJobs(trackerResponse, metadata, infoHash, peerID)
+	if err != nil {
+		return err
+	}
+	//Distrbute jobs across workers for concurrent piece downloads. And start our server for seeding
+	err = DownloadFile(jobs, workerCount, outputPath, metadata.PieceLength, metadata.TotalLength)
+	if err != nil {
+		return err
+	}
+
+	err = StartSeeding(address, outputPath, uint32(metadata.PieceLength), trackerURL, string(peerID[:]), port, infoHashHex, transactionID)
+	if err != nil {
+		return err
+	}
+	return nil
+
 }

@@ -40,3 +40,17 @@ func StartUploadServer(address string, filePath string, pieceLength uint32) erro
 	}()
 	return nil //return once listner is running
 }
+
+func StartSeeding(address string, filePath string, pieceLength uint32, trackerURL string, peerID string, port int, infoHash string, transactionID int) error {
+	//start upload server and annouce completed event to tracker
+	err := StartUploadServer(address, filePath, pieceLength)
+	if err != nil {
+		return err
+	}
+
+	trackerResponse, err := Announce(trackerURL, peerID, port, infoHash, transactionID, "completed")
+	if err != nil {
+		return err
+	}
+	return nil
+}

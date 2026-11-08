@@ -21,7 +21,7 @@ func sendHandshake(connection net.Conn, infoHash [32]byte, peerID [20]byte) erro
 	copy(buffer[60:80], peerID[:])
 
 	//Send handshake data to connection
-	err := writeFull(connection, buffer)
+	err := WriteFull(connection, buffer)
 	if err != nil {
 		return err
 	}
