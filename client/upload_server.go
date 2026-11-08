@@ -1,13 +1,15 @@
 package client
 
 import (
+	"fmt"
+	"hex"
 	"log"
 	"net"
 
 	"github.com/prdethxn/BitTorrent-Lyte/peer"
 )
 
-func StartUploadServer(address string, filePath string, pieceLength uint32) error {
+func StartUploadServer(address string, filePath string, pieceLength uint32, infoHash [32]byte, peerID [20]byte) error {
 	//Open TCP listener
 	listener, err := peer.Listen(address)
 
@@ -30,7 +32,25 @@ func StartUploadServer(address string, filePath string, pieceLength uint32) erro
 
 			//handle upload requests concurrently
 			go func(conn net.Conn) {
-				err := handleUpload(conn, filePath, pieceLength)
+
+				handshake, err := peer.ReadHandshake(conn)
+				if err != nil {
+					conn.Close()
+					return
+				}
+
+				if handshake.InfoHash != infoHash {
+					conn.Close()
+					return
+				}
+
+				err = peer.SendHandshake(conn, infoHash, peerID)
+				if err != nil {
+					conn.Close()
+					return
+				}
+
+				err = handleUpload(conn, filePath, pieceLength)
 				if err != nil {
 					log.Printf("Failed to upload to peer: %v", err)
 				}
@@ -42,15 +62,32 @@ func StartUploadServer(address string, filePath string, pieceLength uint32) erro
 }
 
 func StartSeeding(address string, filePath string, pieceLength uint32, trackerURL string, peerID string, port int, infoHash string, transactionID int) error {
-	//start upload server and annouce completed event to tracker
-	err := StartUploadServer(address, filePath, pieceLength)
+	// Convert peer ID into a fixed-size array.
+	if len(peerID) != 20 {
+		return fmt.Errorf("invalid peer ID length")
+	}
+	var localPeerID [20]byte
+	copy(localPeerID[:], peerID)
+
+	// Decode hexadecimal infohash into a fixed-size array.
+	hashBytes, err := hex.DecodeString(infoHash)
+	if err != nil || len(hashBytes) != 32 {
+		return fmt.Errorf("invalid infohash")
+	}
+	var localInfoHash [32]byte
+	copy(localInfoHash[:], hashBytes)
+
+	// Start upload server.
+	err = StartUploadServer(address, filePath, pieceLength, localInfoHash, localPeerID)
 	if err != nil {
 		return err
 	}
 
-	trackerResponse, err := Announce(trackerURL, peerID, port, infoHash, transactionID, "completed")
+	// Announce completed event to tracker.
+	_, err = Announce(trackerURL, peerID, port, infoHash, transactionID, "completed")
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

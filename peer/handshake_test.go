@@ -37,7 +37,7 @@ func TestReadHandshakeSuccess(t *testing.T) {
 		client.Write(createTestHandshake(expectedHash, expectedPeerID))
 	}()
 
-	handshake, err := readHandshake(server)
+	handshake, err := ReadHandshake(server)
 	if err != nil {
 		t.Fatalf("readHandshake() returned unexpected error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestReadHandshakeFragmented(t *testing.T) {
 		}
 	}()
 
-	handshake, err := readHandshake(server)
+	handshake, err := ReadHandshake(server)
 	if err != nil {
 		t.Fatalf("readHandshake() failed on fragmented input: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestReadHandshakeInvalidLength(t *testing.T) {
 		client.Write(data)
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for invalid protocol length")
 	}
@@ -125,7 +125,7 @@ func TestReadHandshakeInvalidProtocol(t *testing.T) {
 		client.Write(data)
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for invalid protocol identifier")
 	}
@@ -142,7 +142,7 @@ func TestReadHandshakeIncomplete(t *testing.T) {
 		client.Close()
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for incomplete handshake")
 	}
