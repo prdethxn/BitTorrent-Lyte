@@ -42,11 +42,11 @@ func processJob(job PieceJob) (PieceResult, error) {
 	}
 	defer connection.Close()
 
-	err = sendHandshake(connection, job.Infohash, job.LocalPeerID)
+	err = SendHandshake(connection, job.Infohash, job.LocalPeerID)
 	if err != nil {
 		return PieceResult{}, fmt.Errorf("failed to send handshake: %v", err)
 	}
-	handshake, err := readHandshake(connection)
+	handshake, err := ReadHandshake(connection)
 
 	if err != nil {
 		//skip job on failure
