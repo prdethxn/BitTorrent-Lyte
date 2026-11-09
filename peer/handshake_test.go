@@ -37,7 +37,7 @@ func TestReadHandshakeSuccess(t *testing.T) {
 		client.Write(createTestHandshake(expectedHash, expectedPeerID))
 	}()
 
-	handshake, err := readHandshake(server)
+	handshake, err := ReadHandshake(server)
 	if err != nil {
 		t.Fatalf("readHandshake() returned unexpected error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestReadHandshakeFragmented(t *testing.T) {
 		}
 	}()
 
-	handshake, err := readHandshake(server)
+	handshake, err := ReadHandshake(server)
 	if err != nil {
 		t.Fatalf("readHandshake() failed on fragmented input: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestReadHandshakeInvalidLength(t *testing.T) {
 		client.Write(data)
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for invalid protocol length")
 	}
@@ -125,7 +125,7 @@ func TestReadHandshakeInvalidProtocol(t *testing.T) {
 		client.Write(data)
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for invalid protocol identifier")
 	}
@@ -142,7 +142,7 @@ func TestReadHandshakeIncomplete(t *testing.T) {
 		client.Close()
 	}()
 
-	_, err := readHandshake(server)
+	_, err := ReadHandshake(server)
 	if err == nil {
 		t.Fatal("expected error for incomplete handshake")
 	}
@@ -173,8 +173,7 @@ func TestWriteFullSuccess(t *testing.T) {
 			return len(p), nil
 		},
 	}
-
-	if err := writeFull(connection, data); err != nil {
+	if err := WriteFull(connection, data); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -192,7 +191,7 @@ func TestWriteFullPartialWrites(t *testing.T) {
 		},
 	}
 
-	if err := writeFull(connection, data); err != nil {
+	if err := WriteFull(connection, data); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -209,7 +208,7 @@ func TestWriteFullZeroBytes(t *testing.T) {
 		},
 	}
 
-	if err := writeFull(connection, []byte("test")); err == nil {
+	if err := WriteFull(connection, []byte("test")); err == nil {
 		t.Fatal("expected error for zero-byte write")
 	}
 }
@@ -224,7 +223,7 @@ func TestWriteFullConnectionError(t *testing.T) {
 		},
 	}
 
-	err := writeFull(connection, []byte("test"))
+	err := WriteFull(connection, []byte("test"))
 
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected connection error, got: %v", err)

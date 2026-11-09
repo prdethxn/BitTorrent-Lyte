@@ -1,15 +1,46 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
 )
 
+type TrackerResponse struct {
+	TransactionId int           `json:"transaction_id"`
+	Peers         []TrackerPeer `json:"peers"`
+}
+
+type TrackerPeer struct {
+	PeerID    string `json:"peer_id"`
+	IPAddress string `json:"ip_address"`
+	Port      int    `json:"port"`
+}
+
 // Define regex
 var hex64Regex = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+// Get avaiable peers
+func getPeers(mySwarm *swarm, requestingPeerID string) []TrackerPeer {
+	if mySwarm == nil {
+		return nil
+	}
+
+	mySwarm.mu.RLock()
+	defer mySwarm.mu.RUnlock()
+	var peers []TrackerPeer
+	for _, peer := range mySwarm.peerCollection {
+		if peer.peerId != requestingPeerID {
+			peers = append(peers, TrackerPeer{peer.peerId, peer.ipAddress, peer.port})
+		}
+	}
+
+	return peers
+}
 
 // Manage incoming requests, allowing handler to access store
 func makeHandler(myStore *swarmStore) http.HandlerFunc {
@@ -75,6 +106,13 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 			return
 		}
 
+		//Ip address (let's be honest, I don't need to tell you what an IP is...)
+		ipAddress, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "Invalid remote address", http.StatusBadRequest)
+			return
+		}
+
 		//event
 		allowedEvents := map[string]struct{}{
 			"completed": {},
@@ -101,25 +139,25 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 		case "started":
 			//Add peer to swarm
 			mySwarm := getOrCreateSwarm(myStore, infoHashValue)
-			myPeer := makePeer(peerIdValue, portNum)
+			myPeer := makePeer(peerIdValue, portNum, ipAddress)
 			addPeerToSwarm(mySwarm, myPeer)
 
 		case "stopped":
 			//Remove peer from swarm
-			currentSwarm := getSwarm(myStore, infoHashValue)
+			mySwarm := getSwarm(myStore, infoHashValue)
 
 			//If swarm/peer don't exist, exit
-			if currentSwarm == nil {
+			if mySwarm == nil {
 				break
 			}
 
-			currentPeer := getPeer(currentSwarm, peerIdValue)
+			currentPeer := getPeer(mySwarm, peerIdValue)
 
 			if currentPeer == nil {
 				break
 			}
 
-			removePeerFromSwarm(currentSwarm, currentPeer)
+			removePeerFromSwarm(mySwarm, currentPeer)
 
 		case "completed":
 			mySwarm := getSwarm(myStore, infoHashValue)
@@ -134,19 +172,25 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 		}
 
 		//Respond if all parameters are gotten sucessfully
+		mySwarm := getSwarm(myStore, infoHashValue)
+		peers := getPeers(mySwarm, peerIdValue)
 
+		//Encode response into JSON
+		response := TrackerResponse{transactionIdValue, peers}
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "failed to convert response to JSON", http.StatusInternalServerError)
+			return
+		}
 		//Set content type
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 
 		//Send status code and transaction id
 		w.WriteHeader(http.StatusOK)
 
 		//Convert from int to string prior to sending
-		stringTransactionIdValue := strconv.Itoa(transactionIdValue)
-		w.Write([]byte(stringTransactionIdValue))
-
+		w.Write(jsonResponse)
 	}
-
 }
 
 func main() {

@@ -6,7 +6,7 @@ import (
 )
 
 func TestToJSON(t *testing.T) {
-	testMetaData, testErr := chunkFile("test_files/testinput.txt", 5)
+	testMetaData, testErr := ChunkFile("test_files/testinput.txt", 5)
 	if testErr != nil {
 		t.Fatalf("chunkFile failed: %v", testErr)
 	}

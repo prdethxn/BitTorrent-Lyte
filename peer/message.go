@@ -17,6 +17,12 @@ type Message struct {
 
 const MaxMessageLength uint32 = 1 << 20 // 1 MiB
 const BlockSize uint32 = 16 * 1024      // 16 Kib
+const (
+	MsgRequest  byte = 6
+	MsgHave     byte = 4
+	MsgBitfield byte = 5
+	MsgPiece    byte = 7
+)
 
 func ReadMessage(connection net.Conn) (Message, error) {
 	//Get length
@@ -38,7 +44,6 @@ func ReadMessage(connection net.Conn) (Message, error) {
 	//If length exceeds 1 Mib, terminate. Prevents overly-large message requests from crashing the app.
 	if length > MaxMessageLength {
 		return Message{}, errors.New("message length exceeds 1 Mib.")
-
 	}
 
 	//Read and extract messageID and data
@@ -70,7 +75,7 @@ func sendPieceRequest(connection net.Conn, index uint32, begin uint32, length ui
 	binary.BigEndian.PutUint32(buffer[13:17], length)
 
 	//Send data to connection
-	return writeFull(connection, buffer)
+	return WriteFull(connection, buffer)
 }
 
 func parsePieceMessage(message Message) (uint32, uint32, []byte, error) {

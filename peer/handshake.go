@@ -12,7 +12,7 @@ type Handshake struct {
 	PeerID   [20]byte
 }
 
-func sendHandshake(connection net.Conn, infoHash [32]byte, peerID [20]byte) error {
+func SendHandshake(connection net.Conn, infoHash [32]byte, peerID [20]byte) error {
 	buffer := make([]byte, 80)
 	//Fill buffer with hanshake data
 	buffer[0] = 19
@@ -21,14 +21,14 @@ func sendHandshake(connection net.Conn, infoHash [32]byte, peerID [20]byte) erro
 	copy(buffer[60:80], peerID[:])
 
 	//Send handshake data to connection
-	err := writeFull(connection, buffer)
+	err := WriteFull(connection, buffer)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func readHandshake(connection net.Conn) (Handshake, error) {
+func ReadHandshake(connection net.Conn) (Handshake, error) {
 	buffer := make([]byte, 80)
 	//Read connection until buffer is full
 	_, err := io.ReadFull(connection, buffer)
@@ -53,7 +53,7 @@ func readHandshake(connection net.Conn) (Handshake, error) {
 }
 
 // Guarentee that all bytes are written
-func writeFull(connection net.Conn, buffer []byte) error {
+func WriteFull(connection net.Conn, buffer []byte) error {
 	totalWritten := 0
 	for totalWritten < len(buffer) {
 		bytes, err := connection.Write(buffer[totalWritten:])

@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-const MsgRequest byte = 6
-
 // Creates a valid 80-byte BitTorrent handshake for testing.
 func makeTestHandshake(infoHash [32]byte, peerID [20]byte) []byte {
 	buffer := make([]byte, 80)
@@ -52,7 +50,7 @@ func startTestPeer(t *testing.T, response []byte) (string, <-chan error) {
 			return
 		}
 		if response != nil {
-			if err := writeFull(connection, response); err != nil {
+			if err := WriteFull(connection, response); err != nil {
 				serverErr <- err
 				return
 			}
@@ -79,7 +77,7 @@ func handlePieceConnection(
 	if _, err := io.ReadFull(connection, clientHandshake); err != nil {
 		return err
 	}
-	if err := writeFull(connection, makeTestHandshake(infoHash, [20]byte{})); err != nil {
+	if err := WriteFull(connection, makeTestHandshake(infoHash, [20]byte{1})); err != nil {
 		return err
 	}
 	// Read the request message and extract its piece coordinates.
@@ -107,7 +105,7 @@ func handlePieceConnection(
 	binary.BigEndian.PutUint32(response[5:9], pieceIndex)
 	binary.BigEndian.PutUint32(response[9:13], begin)
 	copy(response[13:], block)
-	return writeFull(connection, response)
+	return WriteFull(connection, response)
 }
 
 // Starts a mock peer that can handle multiple independent connections.
@@ -171,7 +169,8 @@ func TestProcessJobSuccessfulDownload(t *testing.T) {
 		PieceLength:  uint32(len(pieceData)),
 		ExpectedHash: hex.EncodeToString(hash[:]),
 	}
-	if err := processJob(job); err != nil {
+	result, err := processJob(job)
+	if err != nil || result.Err != nil {
 		t.Fatalf("expected successful job, got: %v", err)
 	}
 	if err := <-serverErr; err != nil {
@@ -194,7 +193,7 @@ func TestProcessJobIntegrityFailure(t *testing.T) {
 		PieceLength:  uint32(len(pieceData)),
 		ExpectedHash: "incorrect_hash",
 	}
-	if err := processJob(job); err == nil {
+	if _, err := processJob(job); err == nil {
 		t.Fatal("expected integrity failure, got nil")
 	}
 	if err := <-serverErr; err != nil {
@@ -213,9 +212,10 @@ func TestPieceWorkerProcessesMultipleJobs(t *testing.T) {
 		t, jobCount, infoHash, 0, pieceData,
 	)
 	jobQueue := makeJobQueue()
+	resultsChannel := make(chan PieceResult, jobCount)
 	done := make(chan struct{})
 	go func() {
-		pieceWorker(jobQueue)
+		pieceWorker(jobQueue, resultsChannel)
 		close(done)
 	}()
 	for i := 0; i < jobCount; i++ {
@@ -252,12 +252,13 @@ func TestMultipleWorkersProcessJobsConcurrently(t *testing.T) {
 		t, workerCount, infoHash, 0, pieceData,
 	)
 	jobQueue := make(chan PieceJob, workerCount)
+	resultsChannel := make(chan PieceResult, workerCount)
 	var wg sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pieceWorker(jobQueue)
+			pieceWorker(jobQueue, resultsChannel)
 		}()
 	}
 	for i := 0; i < workerCount; i++ {

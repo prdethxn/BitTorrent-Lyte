@@ -8,6 +8,7 @@ type peer struct {
 	peerId    string
 	port      int
 	completed bool
+	ipAddress string
 }
 
 type swarm struct {
@@ -37,10 +38,11 @@ func makeSwarm(swarm_hash string) *swarm {
 	}
 }
 
-func makePeer(id string, portNum int) *peer {
+func makePeer(id string, portNum int, ipAddress string) *peer {
 	return &peer{
-		peerId: id,
-		port:   portNum,
+		peerId:    id,
+		port:      portNum,
+		ipAddress: ipAddress,
 	}
 }
 

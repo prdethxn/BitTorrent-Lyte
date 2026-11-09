@@ -4,9 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/prdethxn/BitTorrent-Lyte/integrity"
 )
+
+// Used to communicate between workers and a centeral coordinator
+type PieceResult struct {
+	PieceIndex uint32
+	Data       []byte
+	Err        error
+}
 
 type PieceJob struct {
 	PieceIndex   uint32   //Identifies which piece the worker is assigned
@@ -25,56 +33,109 @@ func addJob(jobQueue chan PieceJob, job PieceJob) {
 	jobQueue <- job
 }
 
-func processJob(job PieceJob) error {
+func processJob(job PieceJob) (PieceResult, error) {
 	//Connect to peer
-	connection, err := net.Dial("tcp", job.PeerAddress)
+	connection, err := net.DialTimeout("tcp", job.PeerAddress, 5*time.Second)
 	if err != nil {
 		//handle error by skipping job
-		return fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
+		return PieceResult{}, fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
 	}
 	defer connection.Close()
 
-	err = sendHandshake(connection, job.Infohash, job.LocalPeerID)
+	err = SendHandshake(connection, job.Infohash, job.LocalPeerID)
 	if err != nil {
-		return fmt.Errorf("failed to send handshake: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to send handshake: %v", err)
 	}
-	handshake, err := readHandshake(connection)
+	handshake, err := ReadHandshake(connection)
+
 	if err != nil {
 		//skip job on failure
-		return fmt.Errorf("failed to read handshake: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to read handshake: %v", err)
+	}
+
+	//A peer cannot establish a connection to itself
+	if job.LocalPeerID == handshake.PeerID {
+		return PieceResult{}, errors.New("peer cannot establish connection to itself")
 	}
 
 	//Ensure infohash matching; ensures that is downloaded in the correct file
 	if handshake.InfoHash != job.Infohash {
-		return errors.New("infohash mismatch")
+		return PieceResult{}, errors.New("infohash mismatch")
 	}
 
 	//Download piece data
 	pieceData, err := downloadPiece(connection, job.PieceIndex, job.PieceLength)
 	if err != nil {
-		return fmt.Errorf("failed to download piece: %v", err)
+		return PieceResult{}, fmt.Errorf("failed to download piece: %v", err)
 	}
 
 	//Verify donwloaded piece integrity
 	if !integrity.VerifyIntegrity(pieceData, job.ExpectedHash) {
-		return errors.New("integrity check failed for downloaded piece")
+		return PieceResult{}, errors.New("integrity check failed for downloaded piece")
 	}
-	return nil
+	return PieceResult{job.PieceIndex, pieceData, nil}, nil
 }
 
-// Worker function to process jobs from queue
-func pieceWorker(jobQueue <-chan PieceJob) {
+// Worker function to process jobs from queue and send result
+func pieceWorker(jobQueue <-chan PieceJob, resultsChannel chan<- PieceResult) {
 	for job := range jobQueue {
-		err := processJob(job)
+		result, err := processJob(job)
 		if err != nil {
-			continue //Skip failed job for now.
+			result.Err = err
+			result.PieceIndex = job.PieceIndex
 		}
+		resultsChannel <- result
 	}
 }
 
 // Starts workers to grab and process data from queue
-func startWorkers(workerCount int, jobQueue chan PieceJob) {
-	for i := 0; i < workerCount; i++ {
-		go pieceWorker(jobQueue)
+func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<- PieceResult) error {
+	if workerCount < 1 {
+		return fmt.Errorf("Invalid number of workers")
 	}
+	for i := 0; i < workerCount; i++ {
+		go pieceWorker(jobQueue, resultsChannel)
+	}
+	return nil
+}
+
+// Consume results from all workers
+func collectResults(resultsChannel <-chan PieceResult, expetectedResults int) (map[uint32][]byte, []uint32) {
+	results := make(map[uint32][]byte)
+	failedPieces := []uint32{}
+	//Recieve and store results
+	for i := 0; i < expetectedResults; i++ {
+		result := <-resultsChannel
+		if result.Err != nil {
+			fmt.Printf("job failed for piece %d: %v\n", result.PieceIndex, result.Err)
+			failedPieces = append(failedPieces, result.PieceIndex)
+		} else {
+			results[result.PieceIndex] = result.Data
+		}
+	}
+	return results, failedPieces
+}
+
+func makeResultsChannel(jobCount int) chan PieceResult {
+	return make(chan PieceResult, jobCount)
+}
+
+func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint32, error) {
+	//Create job queue and start workers
+	queue := makeJobQueue()
+	resultsChannel := makeResultsChannel(len(job))
+	err := startWorkers(workerCount, queue, resultsChannel)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	//Dsitrbute jobs and collect results, returning failed and sucessful piece indexes
+	go func() {
+		for i := 0; i < len(job); i++ {
+			addJob(queue, job[i])
+		}
+		close(queue)
+	}()
+	results, failedPieces := collectResults(resultsChannel, len(job))
+	return results, failedPieces, nil
 }
