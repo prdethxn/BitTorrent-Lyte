@@ -58,12 +58,12 @@ func Announce(trackerURL string, peerID string, port int, infoHash string, trans
 
 	response, err := client.Do(request)
 
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tracker returned bad status: %s", response.Status)
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("tracker request failed: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("tracker returned bad status: %s", response.Status)
 	}
 	defer response.Body.Close() //safley close open connection stream
 

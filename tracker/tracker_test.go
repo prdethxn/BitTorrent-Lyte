@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -26,8 +27,13 @@ func TestAnnounceValidRequest(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	if rec.Body.String() != "42" {
-		t.Errorf("expected transaction ID 42, got %q", rec.Body.String())
+	var resp TrackerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal JSON response: %v", err)
+	}
+
+	if resp.TransactionId != 42 {
+		t.Errorf("expected transaction ID 42, got %d", resp.TransactionId)
 	}
 }
 
@@ -225,8 +231,8 @@ func TestAddMultiplePeersToSwarm(t *testing.T) {
 	store := makeSwarmStore()
 	mySwarm := getOrCreateSwarm(store, "hash123")
 
-	peerOne := makePeer("peer1", 6881)
-	peerTwo := makePeer("peer2", 6882)
+	peerOne := makePeer("peer1", 6881, "127.0.0.1")
+	peerTwo := makePeer("peer2", 6882, "127.0.0.1")
 
 	addPeerToSwarm(mySwarm, peerOne)
 	addPeerToSwarm(mySwarm, peerTwo)
@@ -240,8 +246,8 @@ func TestAddPeerUpdatesExistingPeer(t *testing.T) {
 	store := makeSwarmStore()
 	mySwarm := getOrCreateSwarm(store, "hash123")
 
-	firstPeer := makePeer("peer1", 6881)
-	secondPeer := makePeer("peer1", 6882)
+	firstPeer := makePeer("peer1", 6881, "127.0.0.1")
+	secondPeer := makePeer("peer1", 6882, "127.0.0.1")
 
 	addPeerToSwarm(mySwarm, firstPeer)
 	addPeerToSwarm(mySwarm, secondPeer)
@@ -269,7 +275,7 @@ func TestConcurrentSwarmAndPeerAccess(t *testing.T) {
 			defer wg.Done()
 
 			mySwarm := getOrCreateSwarm(store, "hash123")
-			myPeer := makePeer(fmt.Sprintf("peer%d", i), 6881+i)
+			myPeer := makePeer(fmt.Sprintf("peer%d", i), 6881+i, "127.0.0.1")
 
 			addPeerToSwarm(mySwarm, myPeer)
 			getPeer(mySwarm, myPeer.peerId)
