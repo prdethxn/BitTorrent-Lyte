@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"github.com/prdethxn/BitTorrent-Lyte/bitfield"
 	"github.com/prdethxn/BitTorrent-Lyte/chunker"
 	"github.com/prdethxn/BitTorrent-Lyte/client"
+	ws "github.com/prdethxn/BitTorrent-Lyte/internal/websocket"
 )
 
 // Every client needs a unique 20-byte peer ID.
@@ -24,6 +27,32 @@ func generatePeerID() ([20]byte, error) {
 		return [20]byte{}, fmt.Errorf("failed to generate peer ID: %w", err)
 	}
 	return peerID, nil
+}
+
+// Start the WebSocket broadcaster and HTTP server.
+func startWebSocketServer(hub *ws.Hub) (*http.Server, error) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", hub.ServeWs)
+
+	server := &http.Server{
+		Addr:    "localhost:8081",
+		Handler: mux,
+	}
+
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start WebSocket server: %w", err)
+	}
+
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Printf("WebSocket server error: %v", err)
+		}
+	}()
+
+	fmt.Println("WebSocket server running at ws://localhost:8081/ws")
+
+	return server, nil
 }
 
 func validateArguments(mode, filePath, torrentPath, outputPath string, port, workers, pieceSize int) error {
@@ -202,10 +231,20 @@ func main() {
 		return
 	}
 
+	// Initialise WebSocket Hub.
+	hub := ws.NewHub()
+	go hub.Run()
+
+	// Start WebSocket HTTP server.
+	wsServer, err := startWebSocketServer(hub)
+	if err != nil {
+		log.Printf("WebSocket startup failed: %v", err)
+		return
+	}
+	defer wsServer.Close()
+
 	// Construct TCP listening address.
 	listenAddress := net.JoinHostPort(*address, strconv.Itoa(*port))
-
-	var err error
 
 	if *mode == "seed" {
 		err = runSeed(
