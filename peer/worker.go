@@ -100,42 +100,52 @@ func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<-
 }
 
 // Consume results from all workers
-func collectResults(resultsChannel <-chan PieceResult, expetectedResults int) (map[uint32][]byte, []uint32) {
-	results := make(map[uint32][]byte)
-	failedPieces := []uint32{}
-	//Recieve and store results
-	for i := 0; i < expetectedResults; i++ {
+func collectResults(resultsChannel <-chan PieceResult, expectedResults int, onResult func(PieceResult)) (map[uint32][]byte, []uint32) {
+	results := make(map[uint32][]byte, expectedResults)
+	failedPieces := make([]uint32, 0)
+	for i := 0; i < expectedResults; i++ {
 		result := <-resultsChannel
+		// Notify the caller whenever a piece finishes processing.
+		if onResult != nil {
+			onResult(result)
+		}
 		if result.Err != nil {
-			fmt.Printf("job failed for piece %d: %v\n", result.PieceIndex, result.Err)
+			fmt.Printf("Job failed for piece %d: %v\n",
+				result.PieceIndex, result.Err)
 			failedPieces = append(failedPieces, result.PieceIndex)
 		} else {
 			results[result.PieceIndex] = result.Data
 		}
 	}
 	return results, failedPieces
+
 }
 
 func makeResultsChannel(jobCount int) chan PieceResult {
 	return make(chan PieceResult, jobCount)
 }
 
-func DownloadPieces(job []PieceJob, workerCount int) (map[uint32][]byte, []uint32, error) {
-	//Create job queue and start workers
+func DownloadPieces(jobs []PieceJob, workerCount int, onResult func(PieceResult)) (map[uint32][]byte, []uint32, error) {
+	// Create job queue and results channel.
 	queue := makeJobQueue()
-	resultsChannel := makeResultsChannel(len(job))
+	resultsChannel := makeResultsChannel(len(jobs))
+	// Start worker goroutines.
 	err := startWorkers(workerCount, queue, resultsChannel)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	//Dsitrbute jobs and collect results, returning failed and sucessful piece indexes
+	// Distribute jobs across the worker pool.
 	go func() {
-		for i := 0; i < len(job); i++ {
-			addJob(queue, job[i])
+		defer close(queue)
+		for _, job := range jobs {
+			addJob(queue, job)
 		}
-		close(queue)
 	}()
-	results, failedPieces := collectResults(resultsChannel, len(job))
+	// Collect results and report progress through callback.
+	results, failedPieces := collectResults(
+		resultsChannel,
+		len(jobs),
+		onResult,
+	)
 	return results, failedPieces, nil
 }
