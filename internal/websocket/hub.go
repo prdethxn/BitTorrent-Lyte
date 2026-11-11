@@ -41,9 +41,14 @@ func (h *Hub) Run() {
 					// Remove clients that cannot keep up.
 					delete(h.clients, client)
 					close(client.send)
+					client.conn.Close()
 				}
 			}
 		}
 	}
 
+}
+
+func (h *Hub) Broadcast(message []byte) {
+	h.broadcast <- append([]byte(nil), message...)
 }

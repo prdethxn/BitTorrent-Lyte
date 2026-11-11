@@ -3,6 +3,7 @@ package websocket
 
 import (
 	"log"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,6 +18,7 @@ func (c *Client) ReadPump() {
 	//unregister client and clean up connection after loop break
 	defer func() {
 		c.conn.Close()
+		c.hub.unregister <- c
 	}()
 	for {
 		//continiously read incoming websocket messages
@@ -36,14 +38,14 @@ func (c *Client) ReadPump() {
 }
 
 func (c *Client) WritePump() {
-	//unregister client and clean up connection after loop break
+	//clean up connection after loop break
 	defer func() {
-		c.hub.unregister <- c
 		c.conn.Close()
 	}()
 
 	for message := range c.send {
 		//Write message to web socket
+		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
 			log.Printf("write error: %v", err)
