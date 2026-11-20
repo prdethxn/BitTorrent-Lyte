@@ -77,32 +77,24 @@ func Announce(trackerURL string, peerID string, port int, infoHash string, trans
 
 }
 
-func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, pieceLength int, totalLength int64, onResult func(peer.PieceResult)) error {
-	// Download pieces concurrently and report individual results.
-	pieces, failedPieces, err := peer.DownloadPieces(
-		jobs,
-		workerCount,
-		onResult,
-	)
+func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, pieceLength int, totalLength int64) error {
+	pieces, failedPieces, err := peer.DownloadPieces(jobs, workerCount)
+
 	if err != nil {
 		return err
 	}
+
 	if len(failedPieces) > 0 {
 		return fmt.Errorf("%d pieces failed to download", len(failedPieces))
 	}
-	// Reconstruct the completed file.
-	err = storage.AssembleFile(
-		outputPath,
-		pieces,
-		pieceLength,
-		totalLength,
-	)
+
+	err = storage.AssembleFile(outputPath, pieces, pieceLength, totalLength)
 	if err != nil {
 		return fmt.Errorf("failed to assemble file: %w", err)
 	}
 	return nil
-
 }
+
 func handleUpload(connection net.Conn, filePath string, pieceLength uint32, availablePieces *bitfield.Bitfield) error {
 	defer connection.Close()
 
@@ -256,7 +248,7 @@ func CreatePieceJobs(trackerResponse *TrackerResponse, metadata chunker.TorrentM
 	return jobs, nil
 }
 
-func DownloadFromSwarm(trackerURL string, address string, peerID [20]byte, port int, infoHash [32]byte, transactionID int, metadata chunker.TorrentMetaData, outputPath string, workerCount int, onResult func(peer.PieceResult)) error {
+func DownloadFromSwarm(trackerURL string, address string, peerID [20]byte, port int, infoHash [32]byte, transactionID int, metadata chunker.TorrentMetaData, outputPath string, workerCount int) error {
 	infoHashHex := hex.EncodeToString(infoHash[:])
 
 	//Announce client to tracker and get avaliable peers
@@ -271,7 +263,7 @@ func DownloadFromSwarm(trackerURL string, address string, peerID [20]byte, port 
 		return err
 	}
 	//Distrbute jobs across workers for concurrent piece downloads. And start our server for seeding
-	err = DownloadFile(jobs, workerCount, outputPath, metadata.PieceLength, metadata.TotalLength, onResult)
+	err = DownloadFile(jobs, workerCount, outputPath, metadata.PieceLength, metadata.TotalLength)
 	if err != nil {
 		return err
 	}
