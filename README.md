@@ -14,10 +14,10 @@ A BitTorrent-style peer-to-peer file-sharing system written in Go. Peers find ea
 
 ## How it works
 
-```
+
 <img width="892" height="591" alt="how it works" src="https://github.com/user-attachments/assets/dd297cec-590b-4ee2-b79b-31e423ea3c0d" />
 
-```
+
 
 1. **Seed:** a peer splits a file into pieces, hashes each one, and writes a `.torrent` metadata file. It registers with the tracker.
 2. **Discover:** a downloader loads the `.torrent` file and asks the tracker for peers holding the file.
@@ -26,10 +26,10 @@ A BitTorrent-style peer-to-peer file-sharing system written in Go. Peers find ea
 
 ### Download engine
 
-```
+
  <img width="1395" height="734" alt="DOWNLOAD ENGINE" src="https://github.com/user-attachments/assets/82365c24-cfd4-46b1-9ede-98fcea5b37c4" />
 
-```
+
 
 ---
 
