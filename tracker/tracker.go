@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type TrackerResponse struct {
@@ -34,7 +35,8 @@ func getPeers(mySwarm *swarm, requestingPeerID string) []TrackerPeer {
 	defer mySwarm.mu.RUnlock()
 	var peers []TrackerPeer
 	for _, peer := range mySwarm.peerCollection {
-		if peer.peerId != requestingPeerID {
+		//Only hand out completed peers (seeds), since leechers aren't listening yet
+		if peer.peerId != requestingPeerID && peer.completed {
 			peers = append(peers, TrackerPeer{peer.peerId, peer.ipAddress, peer.port})
 		}
 	}
@@ -106,11 +108,14 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 			return
 		}
 
-		//Ip address (let's be honest, I don't need to tell you what an IP is...)
-		ipAddress, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			http.Error(w, "Invalid remote address", http.StatusBadRequest)
-			return
+		ipAddress := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
+		if net.ParseIP(ipAddress) == nil {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				http.Error(w, "Invalid remote address", http.StatusBadRequest)
+				return
+			}
+			ipAddress = host
 		}
 
 		//event
