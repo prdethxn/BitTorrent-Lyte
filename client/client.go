@@ -77,18 +77,49 @@ func Announce(trackerURL string, peerID string, port int, infoHash string, trans
 
 }
 
+const maxDownloadAttempts = 3
+
 func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, pieceLength int, totalLength int64) error {
-	pieces, failedPieces, err := peer.DownloadPieces(jobs, workerCount)
-
-	if err != nil {
-		return err
+	//Collect the distinct peers so failed pieces can be retried against a different one
+	var peerAddresses []string
+	peerIndex := make(map[string]int)
+	jobByPiece := make(map[uint32]peer.PieceJob)
+	for _, job := range jobs {
+		if _, ok := peerIndex[job.PeerAddress]; !ok {
+			peerIndex[job.PeerAddress] = len(peerAddresses)
+			peerAddresses = append(peerAddresses, job.PeerAddress)
+		}
+		jobByPiece[job.PieceIndex] = job
 	}
 
-	if len(failedPieces) > 0 {
-		return fmt.Errorf("%d pieces failed to download", len(failedPieces))
+	pieces := make(map[uint32][]byte)
+	pending := jobs
+
+	for attempt := 0; attempt < maxDownloadAttempts && len(pending) > 0; attempt++ {
+		downloaded, failedPieces, err := peer.DownloadPieces(pending, workerCount)
+		if err != nil {
+			return err
+		}
+		for index, data := range downloaded {
+			pieces[index] = data
+		}
+
+		//Feed failed pieces back in, each shifted to the next peer
+		retry := make([]peer.PieceJob, 0, len(failedPieces))
+		for _, index := range failedPieces {
+			job := jobByPiece[index]
+			job.PeerAddress = peerAddresses[(peerIndex[job.PeerAddress]+1)%len(peerAddresses)]
+			jobByPiece[index] = job
+			retry = append(retry, job)
+		}
+		pending = retry
 	}
 
-	err = storage.AssembleFile(outputPath, pieces, pieceLength, totalLength)
+	if len(pending) > 0 {
+		return fmt.Errorf("%d pieces failed to download after %d attempts", len(pending), maxDownloadAttempts)
+	}
+
+	err := storage.AssembleFile(outputPath, pieces, pieceLength, totalLength)
 	if err != nil {
 		return fmt.Errorf("failed to assemble file: %w", err)
 	}
