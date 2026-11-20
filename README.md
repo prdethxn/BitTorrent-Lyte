@@ -136,4 +136,4 @@ This is a learning project for concurrency and distributed systems, intentionall
 
 ## Gen AI Acknowledgment
 
-Core logic was written by hand over the course of Early October - November 2026. Most unit tests were AI generated with human oversight, with A.I also assisting on making the project README free from grammar errors and concise.
+Core logic was written by hand between early October and November 2026. Most unit tests were AI-generated with human review, and AI also helped edit this README
