@@ -35,7 +35,7 @@ A BitTorrent-style peer-to-peer file-sharing system written in Go. Peers find ea
 
 ## Quick start
 
-Requires Go 1.27.1
+Requires Go 1.27.1 
 
 ```bash
 # Terminal 1: start the tracker
@@ -136,4 +136,4 @@ This is a learning project for concurrency and distributed systems, intentionall
 
 ## Gen AI Acknowledgment
 
-Core logic was written by hand between early October and November 2026. Most unit tests were AI-generated with human review, and AI also helped edit this README
+Core logic was written by hand between early October and November 2026. Unit tests were AI-generated with human review (except tests from very early commits were hand written), and AI also helped edit this README.
