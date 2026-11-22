@@ -1,6 +1,9 @@
 # BitTorrent-Lyte
 
 [![CI](https://github.com/prdethxn/BitTorrent-Lyte/actions/workflows/ci.yml/badge.svg)](https://github.com/prdethxn/BitTorrent-Lyte/actions/workflows/ci.yml)
+![Go version](https://img.shields.io/github/go-mod/go-version/prdethxn/BitTorrent-Lyte)
+![License](https://img.shields.io/github/license/prdethxn/BitTorrent-Lyte)
+![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 A BitTorrent-style peer-to-peer file-sharing system written in Go. Peers find each other through an HTTP tracker, then transfer files directly over a custom TCP protocol. Every piece is verified with SHA-256 before it is accepted.
 
