@@ -43,7 +43,7 @@ func ReadMessage(connection net.Conn) (Message, error) {
 
 	//If length exceeds 1 Mib, terminate. Prevents overly-large message requests from crashing the app.
 	if length > MaxMessageLength {
-		return Message{}, errors.New("message length exceeds 1 Mib.")
+		return Message{}, errors.New("message length exceeds 1 MiB")
 	}
 
 	//Read and extract messageID and data
@@ -113,7 +113,7 @@ func downloadPiece(connection net.Conn, pieceIndex uint32, pieceLength uint32) (
 		return nil, errors.New("piece length is zero")
 	}
 
-	defer connection.SetDeadline(time.Time{}) //clear deadline after piece download is complete
+	defer func() { _ = connection.SetDeadline(time.Time{}) }() //clear deadline after piece download is complete
 
 	pieceData := make([]byte, pieceLength)
 

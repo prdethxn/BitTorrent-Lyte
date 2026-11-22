@@ -194,7 +194,7 @@ func makeHandler(myStore *swarmStore) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 
 		//Convert from int to string prior to sending
-		w.Write(jsonResponse)
+		_, _ = w.Write(jsonResponse)
 	}
 }
 

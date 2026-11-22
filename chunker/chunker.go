@@ -26,14 +26,14 @@ func validateChunkSize(chunkSize int) bool {
 func ChunkFile(filePath string, chunkSize int) (TorrentMetaData, error) {
 
 	if !validateChunkSize(chunkSize) {
-		return TorrentMetaData{}, errors.New("Chunk size must be > 0")
+		return TorrentMetaData{}, errors.New("chunk size must be > 0")
 	}
 	//open file
 	file, err := os.Open(filePath)
 	if err != nil {
-		return TorrentMetaData{}, fmt.Errorf("Failed to open file: %v", err)
+		return TorrentMetaData{}, fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	//read file in chunks. Use fixed-size byte buffer to not load entire file into RAM
 	//chunkSize is the MAX size of chunk, so this is a buffer of that size
@@ -43,7 +43,7 @@ func ChunkFile(filePath string, chunkSize int) (TorrentMetaData, error) {
 	for {
 		bytesRead, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
-			return TorrentMetaData{}, fmt.Errorf("Failed to read file: %v", err)
+			return TorrentMetaData{}, fmt.Errorf("failed to read file: %v", err)
 		}
 		totalBytes += int64(bytesRead)
 

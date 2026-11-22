@@ -21,7 +21,7 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 	//Continiosly accept incoming connections. Use gorountine to run concurrently with client
 	go func() {
 		//shut down listner once background loop is done
-		defer listener.Close()
+		defer func() { _ = listener.Close() }()
 		for {
 
 			connection, err := peer.AcceptConnection(listener)
@@ -36,18 +36,18 @@ func StartUploadServer(address string, filePath string, pieceLength uint32, info
 
 				handshake, err := peer.ReadHandshake(conn)
 				if err != nil {
-					conn.Close()
+					_ = conn.Close()
 					return
 				}
 
 				if handshake.InfoHash != infoHash {
-					conn.Close()
+					_ = conn.Close()
 					return
 				}
 
 				err = peer.SendHandshake(conn, infoHash, peerID)
 				if err != nil {
-					conn.Close()
+					_ = conn.Close()
 					return
 				}
 

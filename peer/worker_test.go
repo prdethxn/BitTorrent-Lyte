@@ -23,43 +23,6 @@ func makeTestHandshake(infoHash [32]byte, peerID [20]byte) []byte {
 	return buffer
 }
 
-// Starts a mock peer that accepts a connection, reads the client’s
-// handshake and responds with the supplied handshake.
-func startTestPeer(t *testing.T, response []byte) (string, <-chan error) {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to start test peer: %v", err)
-	}
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	serverErr := make(chan error, 1)
-	go func() {
-		connection, err := listener.Accept()
-		if err != nil {
-			serverErr <- err
-			return
-		}
-		defer connection.Close()
-		connection.SetDeadline(time.Now().Add(5 * time.Second))
-		clientHandshake := make([]byte, 80)
-		if _, err := io.ReadFull(connection, clientHandshake); err != nil {
-			serverErr <- err
-			return
-		}
-		if response != nil {
-			if err := WriteFull(connection, response); err != nil {
-				serverErr <- err
-				return
-			}
-		}
-		serverErr <- nil
-	}()
-	return listener.Addr().String(), serverErr
-}
-
 // Handles one mock peer connection, including handshake and piece requests.
 // The mock peer returns the requested block from its supplied piece data.
 func handlePieceConnection(

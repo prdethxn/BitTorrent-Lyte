@@ -33,7 +33,7 @@ func MarkAsDownloaded(b *Bitfield, index int) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !validIndex(b, index) {
-		return fmt.Errorf("Index out of bounds")
+		return fmt.Errorf("index out of bounds")
 	}
 	//Allow index to access correct bit so the right piece is marked
 	byteIndex := index / 8
@@ -46,7 +46,7 @@ func IsDownloaded(b *Bitfield, index int) (bool, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	if !validIndex(b, index) {
-		return false, fmt.Errorf("Index out of bounds")
+		return false, fmt.Errorf("index out of bounds")
 	}
 	byteIndex := index / 8
 	bitIndex := index % 8

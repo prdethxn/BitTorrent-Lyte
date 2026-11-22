@@ -6,7 +6,7 @@ import (
 )
 
 // Reconstruct the file
-func AssembleFile(outputPath string, pieces map[uint32][]byte, pieceLength int, totalLength int64) error {
+func AssembleFile(outputPath string, pieces map[uint32][]byte, pieceLength int, totalLength int64) (err error) {
 	if pieceLength <= 0 || totalLength < 0 {
 		return fmt.Errorf("invalid piece length or total length of file")
 	}
@@ -37,11 +37,15 @@ func AssembleFile(outputPath string, pieces map[uint32][]byte, pieceLength int, 
 	}
 
 	//create file
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return err
+	file, createErr := os.Create(outputPath)
+	if createErr != nil {
+		return createErr
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	//write pieces to file
 	for i := 0; i < int(expectedPieces); i++ {

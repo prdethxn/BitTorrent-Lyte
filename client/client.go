@@ -62,10 +62,11 @@ func Announce(trackerURL string, peerID string, port int, infoHash string, trans
 		return nil, fmt.Errorf("tracker request failed: %w", err)
 	}
 
+	defer func() { _ = response.Body.Close() }()
+
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tracker returned bad status: %s", response.Status)
 	}
-	defer response.Body.Close() //safley close open connection stream
 
 	//Decode JSON response into the struct
 	var trackerResponse TrackerResponse
@@ -127,13 +128,13 @@ func DownloadFile(jobs []peer.PieceJob, workerCount int, outputPath string, piec
 }
 
 func handleUpload(connection net.Conn, filePath string, pieceLength uint32, availablePieces *bitfield.Bitfield) error {
-	defer connection.Close()
+	defer func() { _ = connection.Close() }()
 
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open requested file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	for {
 		// Read the next incoming piece request.

@@ -67,20 +67,6 @@ func removePeerFromSwarm(mySwarm *swarm, myPeer *peer) {
 	delete(mySwarm.peerCollection, myPeer.peerId)
 }
 
-// Add swarm to swarm store
-func addToStore(store *swarmStore, info_hash string, newSwarm *swarm) {
-	//lock out other goroutines while check/writing
-	store.mu.Lock()
-	defer store.mu.Unlock() //Unlock when the upon exit
-
-	//Add swarm if it doesn't exist
-	_, exists := store.swarmCollection[info_hash]
-	if !exists {
-		store.swarmCollection[info_hash] = newSwarm
-	}
-
-}
-
 func getSwarm(myStore *swarmStore, info_hash string) *swarm {
 	myStore.mu.RLock()
 	defer myStore.mu.RUnlock()

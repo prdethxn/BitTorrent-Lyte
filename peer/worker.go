@@ -40,7 +40,7 @@ func processJob(job PieceJob) (PieceResult, error) {
 		//handle error by skipping job
 		return PieceResult{}, fmt.Errorf("failed to connect to peer %s: %v", job.PeerAddress, err)
 	}
-	defer connection.Close()
+	defer func() { _ = connection.Close() }()
 
 	err = SendHandshake(connection, job.Infohash, job.LocalPeerID)
 	if err != nil {
@@ -91,7 +91,7 @@ func pieceWorker(jobQueue <-chan PieceJob, resultsChannel chan<- PieceResult) {
 // Starts workers to grab and process data from queue
 func startWorkers(workerCount int, jobQueue chan PieceJob, resultsChannel chan<- PieceResult) error {
 	if workerCount < 1 {
-		return fmt.Errorf("Invalid number of workers")
+		return fmt.Errorf("invalid number of workers")
 	}
 	for i := 0; i < workerCount; i++ {
 		go pieceWorker(jobQueue, resultsChannel)
