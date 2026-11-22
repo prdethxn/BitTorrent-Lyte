@@ -37,7 +37,7 @@ func TestAnnounceSendsParametersAndDecodesResponse(t *testing.T) {
 			"port":           "6882",
 			"info_hash":      "0123456789abcdef",
 			"transaction_id": "42",
-			"event":           "started",
+			"event":          "started",
 		}
 		for key, expected := range checks {
 			if got := query.Get(key); got != expected {
@@ -234,8 +234,8 @@ func TestHandleUploadSendsRequestedBlock(t *testing.T) {
 	request := make([]byte, 17)
 	binary.BigEndian.PutUint32(request[0:4], 13)
 	request[4] = peer.MsgRequest
-	binary.BigEndian.PutUint32(request[5:9], 0) // piece index
-	binary.BigEndian.PutUint32(request[9:13], 1) // offset
+	binary.BigEndian.PutUint32(request[5:9], 0)   // piece index
+	binary.BigEndian.PutUint32(request[9:13], 1)  // offset
 	binary.BigEndian.PutUint32(request[13:17], 2) // block length
 
 	if err := peer.WriteFull(clientConn, request); err != nil {
